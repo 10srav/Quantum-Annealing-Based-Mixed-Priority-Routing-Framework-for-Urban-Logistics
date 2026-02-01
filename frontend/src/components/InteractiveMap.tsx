@@ -1,0 +1,394 @@
+/**
+ * Interactive OSM Map - Click to add points, set priorities
+ */
+
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap, useMapEvents } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+import type { CityGraph, Node, Edge } from '../lib/types';
+
+// Fix for default marker icons
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+L.Icon.Default.mergeOptions({
+    iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
+    iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
+    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+});
+
+// Custom marker icons
+const createIcon = (type: 'priority' | 'normal', label: string, isInRoute: boolean = false) => {
+    const color = type === 'priority' ? '#ef4444' : '#3b82f6';
+    const size = isInRoute ? 40 : 32;
+    return new L.DivIcon({
+        className: 'custom-div-icon',
+        html: `
+            <div style="
+                width: ${size}px;
+                height: ${size}px;
+                background: ${color};
+                border-radius: 50%;
+                border: 3px solid ${isInRoute ? '#10b981' : 'white'};
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: white;
+                font-weight: bold;
+                font-size: ${isInRoute ? '14px' : '12px'};
+                box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                cursor: pointer;
+            ">${label}</div>
+        `,
+        iconSize: [size, size],
+        iconAnchor: [size / 2, size / 2],
+    });
+};
+
+interface InteractiveMapProps {
+    graph: CityGraph | null;
+    route?: string[];
+    highlightRoute?: boolean;
+    onGraphChange?: (graph: CityGraph) => void;
+    editable?: boolean;
+}
+
+// City centers
+const CITY_CENTERS: Record<string, [number, number]> = {
+    'hyderabad': [17.3850, 78.4867],
+    'bangalore': [12.9716, 77.5946],
+    'mumbai': [19.0760, 72.8777],
+    'delhi': [28.6139, 77.2090],
+    'default': [17.3850, 78.4867],
+};
+
+// Click handler component
+const MapClickHandler: React.FC<{
+    onMapClick: (latlng: L.LatLng) => void;
+    enabled: boolean;
+}> = ({ onMapClick, enabled }) => {
+    useMapEvents({
+        click: (e) => {
+            if (enabled) {
+                onMapClick(e.latlng);
+            }
+        },
+    });
+    return null;
+};
+
+// Auto fit bounds
+const FitBounds: React.FC<{ bounds: L.LatLngBounds | null }> = ({ bounds }) => {
+    const map = useMap();
+    useEffect(() => {
+        if (bounds && bounds.isValid()) {
+            map.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
+        }
+    }, [map, bounds]);
+    return null;
+};
+
+export const InteractiveMap: React.FC<InteractiveMapProps> = ({
+    graph,
+    route = [],
+    highlightRoute = false,
+    onGraphChange,
+    editable = true,
+}) => {
+    const [nodes, setNodes] = useState<Node[]>(graph?.nodes || []);
+    const [edges, setEdges] = useState<Edge[]>(graph?.edges || []);
+    const [selectedNodeType, setSelectedNodeType] = useState<'priority' | 'normal'>('priority');
+    const [editMode, setEditMode] = useState<'add' | 'select' | 'delete'>('add');
+    const cityCenter = CITY_CENTERS.hyderabad;
+
+    // Sync with external graph changes
+    useEffect(() => {
+        if (graph) {
+            setNodes(graph.nodes);
+            setEdges(graph.edges);
+        }
+    }, [graph]);
+
+    // Convert lat/lng to x/y coordinates
+    const latLngToXY = useCallback((lat: number, lng: number): { x: number; y: number } => {
+        const x = Math.round(((lng - cityCenter[1]) / 0.01 + 5) * 10) / 10;
+        const y = Math.round(((lat - cityCenter[0]) / 0.01 + 5) * 10) / 10;
+        return { x: Math.max(0, x), y: Math.max(0, y) };
+    }, [cityCenter]);
+
+    // Convert x/y to lat/lng
+    const xyToLatLng = useCallback((x: number, y: number): [number, number] => {
+        return [
+            cityCenter[0] + (y - 5) * 0.01,
+            cityCenter[1] + (x - 5) * 0.01
+        ];
+    }, [cityCenter]);
+
+    // Calculate distance between two nodes
+    const calculateDistance = (n1: Node, n2: Node): number => {
+        return Math.sqrt(Math.pow(n2.x - n1.x, 2) + Math.pow(n2.y - n1.y, 2));
+    };
+
+    // Add new node on map click
+    const handleMapClick = useCallback((latlng: L.LatLng) => {
+        if (editMode !== 'add') return;
+
+        const { x, y } = latLngToXY(latlng.lat, latlng.lng);
+        const newId = `N${nodes.length + 1}`;
+
+        const newNode: Node = {
+            id: newId,
+            x,
+            y,
+            type: selectedNodeType,
+            label: newId,
+        };
+
+        // Auto-connect to nearby nodes (within distance of 3)
+        const newEdges: Edge[] = [];
+        const trafficLevels: Array<'low' | 'medium' | 'high'> = ['low', 'medium', 'high'];
+
+        nodes.forEach(existingNode => {
+            const dist = calculateDistance(newNode, existingNode);
+            if (dist < 4) { // Connect if within range
+                newEdges.push({
+                    from: existingNode.id,
+                    to: newId,
+                    distance: Math.round(dist * 100) / 100,
+                    traffic: trafficLevels[Math.floor(Math.random() * 3)],
+                });
+            }
+        });
+
+        const updatedNodes = [...nodes, newNode];
+        const updatedEdges = [...edges, ...newEdges];
+
+        setNodes(updatedNodes);
+        setEdges(updatedEdges);
+
+        // Notify parent
+        if (onGraphChange) {
+            onGraphChange({
+                nodes: updatedNodes,
+                edges: updatedEdges,
+                traffic_multipliers: { low: 1.0, medium: 1.5, high: 2.0 }
+            });
+        }
+    }, [editMode, nodes, edges, selectedNodeType, latLngToXY, onGraphChange]);
+
+    // Toggle node type
+    const handleNodeClick = useCallback((nodeId: string) => {
+        if (editMode === 'select') {
+            const updatedNodes = nodes.map(n =>
+                n.id === nodeId
+                    ? { ...n, type: n.type === 'priority' ? 'normal' : 'priority' } as Node
+                    : n
+            );
+            setNodes(updatedNodes);
+
+            if (onGraphChange) {
+                onGraphChange({
+                    nodes: updatedNodes,
+                    edges,
+                    traffic_multipliers: { low: 1.0, medium: 1.5, high: 2.0 }
+                });
+            }
+        } else if (editMode === 'delete') {
+            const updatedNodes = nodes.filter(n => n.id !== nodeId);
+            const updatedEdges = edges.filter(e => e.from !== nodeId && e.to !== nodeId);
+            setNodes(updatedNodes);
+            setEdges(updatedEdges);
+
+            if (onGraphChange) {
+                onGraphChange({
+                    nodes: updatedNodes,
+                    edges: updatedEdges,
+                    traffic_multipliers: { low: 1.0, medium: 1.5, high: 2.0 }
+                });
+            }
+        }
+    }, [editMode, nodes, edges, onGraphChange]);
+
+    // Clear all nodes
+    const handleClearAll = () => {
+        setNodes([]);
+        setEdges([]);
+        if (onGraphChange) {
+            onGraphChange({
+                nodes: [],
+                edges: [],
+                traffic_multipliers: { low: 1.0, medium: 1.5, high: 2.0 }
+            });
+        }
+    };
+
+    // Compute positions and bounds
+    const { nodePositions, bounds } = useMemo(() => {
+        const positions = new Map<string, [number, number]>();
+        nodes.forEach(node => {
+            positions.set(node.id, xyToLatLng(node.x, node.y));
+        });
+
+        if (positions.size > 0) {
+            const latLngs = Array.from(positions.values()).map(p => L.latLng(p[0], p[1]));
+            return { nodePositions: positions, bounds: L.latLngBounds(latLngs) };
+        }
+        return { nodePositions: positions, bounds: null };
+    }, [nodes, xyToLatLng]);
+
+    // Edge lines
+    const edgeLines = useMemo(() => {
+        return edges.map(edge => {
+            const from = nodePositions.get(edge.from);
+            const to = nodePositions.get(edge.to);
+            if (!from || !to) return null;
+
+            const color = edge.traffic === 'low' ? '#22c55e' :
+                edge.traffic === 'medium' ? '#f59e0b' : '#ef4444';
+
+            return { from, to, color };
+        }).filter(Boolean);
+    }, [edges, nodePositions]);
+
+    // Route path
+    const routePath = useMemo(() => {
+        if (!highlightRoute || route.length === 0) return [];
+        return route.map(nodeId => nodePositions.get(nodeId)).filter(Boolean) as [number, number][];
+    }, [route, highlightRoute, nodePositions]);
+
+    return (
+        <div className="interactive-map-container">
+            {editable && (
+                <div className="map-toolbar">
+                    <div className="toolbar-group">
+                        <span className="toolbar-label">Mode:</span>
+                        <button
+                            className={`toolbar-btn ${editMode === 'add' ? 'active' : ''}`}
+                            onClick={() => setEditMode('add')}
+                            title="Click on map to add nodes"
+                        >
+                            ➕ Add
+                        </button>
+                        <button
+                            className={`toolbar-btn ${editMode === 'select' ? 'active' : ''}`}
+                            onClick={() => setEditMode('select')}
+                            title="Click nodes to toggle priority"
+                        >
+                            🔄 Toggle Priority
+                        </button>
+                        <button
+                            className={`toolbar-btn ${editMode === 'delete' ? 'active' : ''}`}
+                            onClick={() => setEditMode('delete')}
+                            title="Click nodes to delete"
+                        >
+                            🗑️ Delete
+                        </button>
+                    </div>
+
+                    {editMode === 'add' && (
+                        <div className="toolbar-group">
+                            <span className="toolbar-label">Add as:</span>
+                            <button
+                                className={`toolbar-btn type-btn priority ${selectedNodeType === 'priority' ? 'active' : ''}`}
+                                onClick={() => setSelectedNodeType('priority')}
+                            >
+                                🔴 Priority
+                            </button>
+                            <button
+                                className={`toolbar-btn type-btn normal ${selectedNodeType === 'normal' ? 'active' : ''}`}
+                                onClick={() => setSelectedNodeType('normal')}
+                            >
+                                🔵 Normal
+                            </button>
+                        </div>
+                    )}
+
+                    <button className="toolbar-btn danger" onClick={handleClearAll}>
+                        🧹 Clear All
+                    </button>
+                </div>
+            )}
+
+            <div className="map-info">
+                <span>📍 {nodes.length} nodes</span>
+                <span>🔴 {nodes.filter(n => n.type === 'priority').length} priority</span>
+                <span>🔵 {nodes.filter(n => n.type === 'normal').length} normal</span>
+                <span>🔗 {edges.length} connections</span>
+            </div>
+
+            <MapContainer
+                center={cityCenter}
+                zoom={14}
+                style={{ height: '600px', width: '100%' }}
+                scrollWheelZoom={true}
+            >
+                <TileLayer
+                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                />
+
+                <MapClickHandler onMapClick={handleMapClick} enabled={editMode === 'add'} />
+                <FitBounds bounds={bounds} />
+
+                {/* Edge lines */}
+                {edgeLines.map((edge, i) => edge && (
+                    <Polyline
+                        key={`edge-${i}`}
+                        positions={[edge.from, edge.to]}
+                        color={edge.color}
+                        weight={2}
+                        opacity={0.5}
+                        dashArray="5, 5"
+                    />
+                ))}
+
+                {/* Route path */}
+                {routePath.length > 1 && (
+                    <Polyline
+                        positions={routePath}
+                        color="#10b981"
+                        weight={4}
+                        opacity={0.9}
+                    />
+                )}
+
+                {/* Node markers */}
+                {nodes.map((node, idx) => {
+                    const pos = nodePositions.get(node.id);
+                    if (!pos) return null;
+
+                    const routeIdx = route.indexOf(node.id);
+                    const isInRoute = routeIdx >= 0;
+                    const label = isInRoute ? `${routeIdx + 1}` : `${idx + 1}`;
+
+                    return (
+                        <Marker
+                            key={node.id}
+                            position={pos}
+                            icon={createIcon(node.type as 'priority' | 'normal', label, isInRoute)}
+                            eventHandlers={{
+                                click: () => handleNodeClick(node.id),
+                            }}
+                        >
+                            <Popup>
+                                <div style={{ textAlign: 'center' }}>
+                                    <strong>{node.id}</strong><br />
+                                    Type: {node.type === 'priority' ? '🔴 Priority' : '🔵 Normal'}<br />
+                                    Position: ({node.x.toFixed(1)}, {node.y.toFixed(1)})
+                                    {isInRoute && <><br />Route #: {routeIdx + 1}</>}
+                                </div>
+                            </Popup>
+                        </Marker>
+                    );
+                })}
+            </MapContainer>
+
+            <div className="map-legend">
+                <div className="legend-item"><span className="legend-dot priority"></span> Priority (visit first)</div>
+                <div className="legend-item"><span className="legend-dot normal"></span> Normal</div>
+                <div className="legend-item"><span className="legend-line low"></span> Low traffic</div>
+                <div className="legend-item"><span className="legend-line medium"></span> Medium traffic</div>
+                <div className="legend-item"><span className="legend-line high"></span> High traffic</div>
+            </div>
+        </div>
+    );
+};

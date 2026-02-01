@@ -1,0 +1,40 @@
+{
+  "nodes": [
+    {"id": "N1", "x": 0.0, "y": 0.0, "type": "priority", "label": "Hospital"},
+    {"id": "N2", "x": 2.5, "y": 1.0, "type": "priority", "label": "Emergency Center"},
+    {"id": "N3", "x": 1.0, "y": 3.0, "type": "priority", "label": "Fire Station"},
+    {"id": "N4", "x": 4.0, "y": 0.5, "type": "normal", "label": "Warehouse A"},
+    {"id": "N5", "x": 3.5, "y": 2.5, "type": "normal", "label": "Retail Store"},
+    {"id": "N6", "x": 5.0, "y": 3.0, "type": "normal", "label": "Distribution Hub"},
+    {"id": "N7", "x": 2.0, "y": 4.5, "type": "normal", "label": "Warehouse B"},
+    {"id": "N8", "x": 4.5, "y": 4.0, "type": "normal", "label": "Office Complex"}
+  ],
+  "edges": [
+    {"from": "N1", "to": "N2", "distance": 2.69, "traffic": "low"},
+    {"from": "N1", "to": "N3", "distance": 3.16, "traffic": "medium"},
+    {"from": "N1", "to": "N4", "distance": 4.03, "traffic": "high"},
+    {"from": "N2", "to": "N3", "distance": 2.50, "traffic": "low"},
+    {"from": "N2", "to": "N4", "distance": 1.58, "traffic": "medium"},
+    {"from": "N2", "to": "N5", "distance": 1.80, "traffic": "low"},
+    {"from": "N3", "to": "N5", "distance": 2.55, "traffic": "medium"},
+    {"from": "N3", "to": "N7", "distance": 1.80, "traffic": "low"},
+    {"from": "N4", "to": "N5", "distance": 2.06, "traffic": "high"},
+    {"from": "N4", "to": "N6", "distance": 2.69, "traffic": "medium"},
+    {"from": "N5", "to": "N6", "distance": 1.58, "traffic": "low"},
+    {"from": "N5", "to": "N7", "distance": 2.50, "traffic": "medium"},
+    {"from": "N5", "to": "N8", "distance": 1.80, "traffic": "low"},
+    {"from": "N6", "to": "N8", "distance": 1.12, "traffic": "low"},
+    {"from": "N7", "to": "N8", "distance": 2.55, "traffic": "medium"}
+  ],
+  "traffic_multipliers": {
+    "low": 1.0,
+    "medium": 1.5,
+    "high": 2.0
+  },
+  "metadata": {
+    "name": "Sample Urban Network",
+    "description": "8-node city graph with 3 priority nodes (emergency services) and 5 normal nodes (logistics)",
+    "priority_count": 3,
+    "normal_count": 5
+  }
+}
