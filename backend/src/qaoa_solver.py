@@ -22,7 +22,7 @@ try:
     from qiskit_optimization.algorithms import MinimumEigenOptimizer
     from qiskit_algorithms import QAOA
     from qiskit_algorithms.optimizers import COBYLA
-    from qiskit_aer.primitives import Sampler
+    from qiskit.primitives import StatevectorSampler
     QISKIT_AVAILABLE = True
 except ImportError:
     QISKIT_AVAILABLE = False
@@ -107,8 +107,8 @@ class QAOASampler:
         # Set objective (minimize)
         qp.minimize(constant=bqm.offset, linear=linear, quadratic=quadratic)
         
-        # Create QAOA instance with Aer simulator
-        sampler = Sampler()
+        # Create QAOA instance with StatevectorSampler (Qiskit 2.x compatible)
+        sampler = StatevectorSampler()
         optimizer = COBYLA(maxiter=100)
         qaoa = QAOA(sampler=sampler, optimizer=optimizer, reps=self.reps)
         
@@ -238,7 +238,7 @@ def check_solver_health() -> dict:
 
     # Try to import critical Qiskit components
     try:
-        from qiskit_aer.primitives import Sampler
+        from qiskit.primitives import StatevectorSampler
         from qiskit_algorithms import QAOA
         result["details"]["qiskit_components"] = "ok"
     except ImportError as e:
@@ -249,7 +249,7 @@ def check_solver_health() -> dict:
 
     # Quick smoke test: create sampler instance
     try:
-        _ = Sampler()
+        _ = StatevectorSampler()
         result["details"]["sampler_init"] = "ok"
     except Exception as e:
         result["status"] = "unhealthy"
