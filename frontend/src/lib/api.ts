@@ -2,7 +2,7 @@
  * API client for Quantum Priority Router
  */
 
-import { API_BASE_URL, API_ENDPOINTS } from './config';
+import { API_BASE_URL, API_ENDPOINTS, API_KEY } from './config';
 import type {
     CityGraph,
     SolverRequest,
@@ -28,6 +28,7 @@ async function fetchApi<T>(
     const response = await fetch(url, {
         headers: {
             'Content-Type': 'application/json',
+            'X-API-Key': API_KEY,
             ...options.headers,
         },
         ...options,
