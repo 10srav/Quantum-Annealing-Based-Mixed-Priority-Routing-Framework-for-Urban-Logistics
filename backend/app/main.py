@@ -2,7 +2,9 @@
 FastAPI Application for Quantum Priority Router.
 """
 
+import asyncio
 import logging
+from functools import partial
 
 from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,8 +14,12 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from contextlib import asynccontextmanager
 import json
 
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+
 from src.security import validate_graph_path, DATA_DIR
 from src.auth import verify_api_key
+from src.rate_limit import limiter
 
 logger = logging.getLogger(__name__)
 from src.data_models import (
@@ -57,6 +63,28 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+async def run_solver_with_timeout(solver_func, *args, **kwargs):
+    """
+    Run a synchronous solver function with timeout.
+
+    Wraps sync function in executor and applies timeout.
+    Returns 504 Gateway Timeout if solver exceeds configured timeout.
+    """
+    loop = asyncio.get_event_loop()
+    func = partial(solver_func, *args, **kwargs)
+    try:
+        result = await asyncio.wait_for(
+            loop.run_in_executor(None, func),
+            timeout=settings.solver_timeout_seconds
+        )
+        return result
+    except asyncio.TimeoutError:
+        raise HTTPException(
+            status_code=504,
+            detail=f"Solver request timed out after {settings.solver_timeout_seconds} seconds"
+        )
 
 
 # Exception handlers - sanitize errors before returning to clients
@@ -112,15 +140,21 @@ async def solve_route(request: SolverRequest, _: bool = Depends(verify_api_key))
 
     - **quantum**: Uses QAOA (Quantum Approximate Optimization Algorithm)
     - **greedy**: Uses nearest-neighbor heuristic
+
+    Returns 504 Gateway Timeout if solver exceeds configured timeout.
     """
     if request.solver == "quantum":
-        result = quantum_solve(
+        result = await run_solver_with_timeout(
+            quantum_solve,
             request.graph,
             request.params,
             use_mock=settings.qaoa_use_mock
         )
     else:
-        result = greedy_solve(request.graph)
+        result = await run_solver_with_timeout(
+            greedy_solve,
+            request.graph
+        )
 
     return result
 
@@ -129,12 +163,18 @@ async def solve_route(request: SolverRequest, _: bool = Depends(verify_api_key))
 async def compare_solvers(graph: CityGraph, _: bool = Depends(verify_api_key)):
     """
     Run both quantum and greedy solvers and compare results.
+
+    Returns 504 Gateway Timeout if either solver exceeds configured timeout.
     """
-    quantum_result = quantum_solve(
+    quantum_result = await run_solver_with_timeout(
+        quantum_solve,
         graph,
         use_mock=settings.qaoa_use_mock
     )
-    greedy_result = greedy_solve(graph)
+    greedy_result = await run_solver_with_timeout(
+        greedy_solve,
+        graph
+    )
 
     return compare_solutions(greedy_result, quantum_result)
 
