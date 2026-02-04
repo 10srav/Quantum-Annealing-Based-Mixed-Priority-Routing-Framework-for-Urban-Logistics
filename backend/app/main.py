@@ -64,6 +64,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Rate limiting
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 
 async def run_solver_with_timeout(solver_func, *args, **kwargs):
     """
@@ -134,7 +138,8 @@ async def health_check():
 
 
 @app.post("/solve", response_model=SolverResponse)
-async def solve_route(request: SolverRequest, _: bool = Depends(verify_api_key)):
+@limiter.limit(f"{settings.rate_limit_solver_per_minute}/minute")
+async def solve_route(request: Request, solver_request: SolverRequest, _: bool = Depends(verify_api_key)):
     """
     Solve routing problem using specified solver.
 
@@ -143,24 +148,25 @@ async def solve_route(request: SolverRequest, _: bool = Depends(verify_api_key))
 
     Returns 504 Gateway Timeout if solver exceeds configured timeout.
     """
-    if request.solver == "quantum":
+    if solver_request.solver == "quantum":
         result = await run_solver_with_timeout(
             quantum_solve,
-            request.graph,
-            request.params,
+            solver_request.graph,
+            solver_request.params,
             use_mock=settings.qaoa_use_mock
         )
     else:
         result = await run_solver_with_timeout(
             greedy_solve,
-            request.graph
+            solver_request.graph
         )
 
     return result
 
 
 @app.post("/compare", response_model=ComparisonResponse)
-async def compare_solvers(graph: CityGraph, _: bool = Depends(verify_api_key)):
+@limiter.limit(f"{settings.rate_limit_solver_per_minute}/minute")
+async def compare_solvers(request: Request, graph: CityGraph, _: bool = Depends(verify_api_key)):
     """
     Run both quantum and greedy solvers and compare results.
 
@@ -180,7 +186,8 @@ async def compare_solvers(graph: CityGraph, _: bool = Depends(verify_api_key)):
 
 
 @app.post("/generate-city", response_model=CityGraph)
-async def generate_city(request: GenerateCityRequest, _: bool = Depends(verify_api_key)):
+@limiter.limit(f"{settings.rate_limit_per_minute}/minute")
+async def generate_city(request: Request, city_request: GenerateCityRequest, _: bool = Depends(verify_api_key)):
     """
     Generate a random city graph for testing.
 
@@ -190,15 +197,16 @@ async def generate_city(request: GenerateCityRequest, _: bool = Depends(verify_a
     - traffic_profile: low, medium, high, or mixed
     """
     return generate_random_city(
-        n_nodes=request.n_nodes,
-        priority_ratio=request.priority_ratio,
-        traffic_profile=request.traffic_profile,
-        seed=request.seed
+        n_nodes=city_request.n_nodes,
+        priority_ratio=city_request.priority_ratio,
+        traffic_profile=city_request.traffic_profile,
+        seed=city_request.seed
     )
 
 
 @app.get("/graphs")
-async def list_graphs(_: bool = Depends(verify_api_key)):
+@limiter.limit(f"{settings.rate_limit_per_minute}/minute")
+async def list_graphs(request: Request, _: bool = Depends(verify_api_key)):
     """
     List available sample city graphs.
     """
@@ -216,7 +224,8 @@ async def list_graphs(_: bool = Depends(verify_api_key)):
 
 
 @app.get("/graphs/{graph_name}")
-async def get_graph(graph_name: str, _: bool = Depends(verify_api_key)):
+@limiter.limit(f"{settings.rate_limit_per_minute}/minute")
+async def get_graph(request: Request, graph_name: str, _: bool = Depends(verify_api_key)):
     """
     Get a specific sample city graph.
 
