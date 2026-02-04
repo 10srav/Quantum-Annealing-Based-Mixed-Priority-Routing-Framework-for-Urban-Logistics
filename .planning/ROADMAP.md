@@ -93,12 +93,12 @@ Plans:
   2. CORS origins are configurable via environment variable and reject requests from unlisted origins
   3. In-flight solver requests complete before shutdown (SIGTERM triggers graceful drain)
   4. Docker Compose production profile sets memory and CPU limits on containers
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 05-01: Production Dockerfile with multi-stage build
-- [ ] 05-02: Environment-based CORS and configuration
-- [ ] 05-03: Graceful shutdown and Docker Compose production profile
+- [ ] 05-01-PLAN.md - Production Dockerfile with multi-stage build
+- [ ] 05-02-PLAN.md - Environment-based CORS and configuration
+- [ ] 05-03-PLAN.md - Graceful shutdown and Docker Compose production profile
 
 ## Progress
 
@@ -111,7 +111,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 | 2. Authentication | 0/3 | Not started | - |
 | 3. Observability | 0/3 | Planned | - |
 | 4. Testing | 0/3 | Not started | - |
-| 5. Infrastructure | 0/3 | Not started | - |
+| 5. Infrastructure | 0/3 | Planned | - |
 
 ---
 *Roadmap created: 2026-02-04*
