@@ -194,19 +194,66 @@ def quantum_solve(
 def get_sampler_info() -> dict[str, Any]:
     """Get information about available QAOA samplers."""
     settings = get_settings()
-    
+
     info = {
         "qiskit_available": QISKIT_AVAILABLE,
         "use_mock": settings.qaoa_use_mock if QISKIT_AVAILABLE else True,
         "qaoa_reps": settings.qaoa_reps,
         "qaoa_shots": settings.qaoa_shots,
     }
-    
+
     if QISKIT_AVAILABLE:
         try:
             import qiskit
             info["qiskit_version"] = qiskit.__version__
         except Exception as e:
             info["error"] = str(e)
-    
+
     return info
+
+
+def check_solver_health() -> dict:
+    """
+    Check if QAOA solver is operational.
+
+    Returns:
+        dict with keys:
+        - name: "qaoa_solver"
+        - status: "healthy" | "degraded" | "unhealthy"
+        - details: dict with diagnostic information
+    """
+    result = {
+        "name": "qaoa_solver",
+        "status": "healthy",
+        "details": {}
+    }
+
+    # Check Qiskit availability
+    result["details"]["qiskit_available"] = QISKIT_AVAILABLE
+
+    if not QISKIT_AVAILABLE:
+        result["status"] = "degraded"
+        result["details"]["message"] = "Qiskit not installed, using mock solver"
+        return result
+
+    # Try to import critical Qiskit components
+    try:
+        from qiskit_aer.primitives import Sampler
+        from qiskit_algorithms import QAOA
+        result["details"]["qiskit_components"] = "ok"
+    except ImportError as e:
+        result["status"] = "degraded"
+        result["details"]["qiskit_components"] = "missing"
+        result["details"]["message"] = f"Qiskit component unavailable: {e}"
+        return result
+
+    # Quick smoke test: create sampler instance
+    try:
+        _ = Sampler()
+        result["details"]["sampler_init"] = "ok"
+    except Exception as e:
+        result["status"] = "unhealthy"
+        result["details"]["sampler_init"] = "failed"
+        result["details"]["error"] = str(e)
+
+    return result
