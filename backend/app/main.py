@@ -21,6 +21,7 @@ from src.data_models import (
     SolverResponse,
     ComparisonResponse,
     QUBOParams,
+    GenerateCityRequest,
 )
 from src.qaoa_solver import quantum_solve, get_sampler_info
 from src.greedy_solver import greedy_solve
@@ -138,20 +139,20 @@ async def compare_solvers(graph: CityGraph):
 
 
 @app.post("/generate-city", response_model=CityGraph)
-async def generate_city(
-    n_nodes: int = 10,
-    priority_ratio: float = 0.3,
-    traffic_profile: str = "mixed",
-    seed: int | None = None
-):
+async def generate_city(request: GenerateCityRequest):
     """
     Generate a random city graph for testing.
+
+    Parameters are validated:
+    - n_nodes: 2-25 (QAOA solver limit)
+    - priority_ratio: 0.0-1.0
+    - traffic_profile: low, medium, high, or mixed
     """
     return generate_random_city(
-        n_nodes=n_nodes,
-        priority_ratio=priority_ratio,
-        traffic_profile=traffic_profile,
-        seed=seed
+        n_nodes=request.n_nodes,
+        priority_ratio=request.priority_ratio,
+        traffic_profile=request.traffic_profile,
+        seed=request.seed
     )
 
 
