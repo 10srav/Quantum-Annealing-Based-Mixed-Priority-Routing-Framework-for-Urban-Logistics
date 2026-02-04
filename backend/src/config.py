@@ -33,6 +33,13 @@ class Settings(BaseSettings):
     # Authentication
     # Store the SHA-256 hash of the API key, never the plaintext key
     api_key_hash: str = ""
+
+    # Rate Limiting
+    rate_limit_per_minute: int = 60  # Requests per minute per API key
+    rate_limit_solver_per_minute: int = 10  # Lower limit for compute-heavy solver endpoints
+
+    # Timeout Settings
+    solver_timeout_seconds: int = 30  # Max time for solver endpoints
     
     # Experiment Settings
     max_nodes: int = 25
