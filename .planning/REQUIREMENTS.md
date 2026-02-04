@@ -1,7 +1,7 @@
 # Requirements: Quantum Routing Framework - Production Hardening
 
 **Defined:** 2026-02-04
-**Core Value:** Demonstrate quantum advantage in constrained routing optimization — secure, reliable, production-ready
+**Core Value:** Demonstrate quantum advantage in constrained routing optimization - secure, reliable, production-ready
 
 ## v1 Requirements
 
@@ -79,32 +79,32 @@ Deferred to future release. Tracked but not in current roadmap.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SEC-01 | Phase 1 | Pending |
-| SEC-02 | Phase 1 | Pending |
-| SEC-03 | Phase 1 | Pending |
-| SEC-04 | Phase 1 | Pending |
-| AUTH-01 | Phase 2 | Pending |
-| AUTH-02 | Phase 2 | Pending |
-| AUTH-03 | Phase 2 | Pending |
-| AUTH-04 | Phase 2 | Pending |
-| OBS-01 | Phase 3 | Pending |
-| OBS-02 | Phase 3 | Pending |
-| OBS-03 | Phase 3 | Pending |
-| OBS-04 | Phase 3 | Pending |
-| TEST-01 | Phase 4 | Pending |
-| TEST-02 | Phase 4 | Pending |
-| TEST-03 | Phase 4 | Pending |
-| TEST-04 | Phase 4 | Pending |
-| INFRA-01 | Phase 5 | Pending |
-| INFRA-02 | Phase 5 | Pending |
-| INFRA-03 | Phase 5 | Pending |
-| INFRA-04 | Phase 5 | Pending |
+| SEC-01 | Phase 1: Security Hardening | Pending |
+| SEC-02 | Phase 1: Security Hardening | Pending |
+| SEC-03 | Phase 1: Security Hardening | Pending |
+| SEC-04 | Phase 1: Security Hardening | Pending |
+| AUTH-01 | Phase 2: Authentication | Pending |
+| AUTH-02 | Phase 2: Authentication | Pending |
+| AUTH-03 | Phase 2: Authentication | Pending |
+| AUTH-04 | Phase 2: Authentication | Pending |
+| OBS-01 | Phase 3: Observability | Pending |
+| OBS-02 | Phase 3: Observability | Pending |
+| OBS-03 | Phase 3: Observability | Pending |
+| OBS-04 | Phase 3: Observability | Pending |
+| TEST-01 | Phase 4: Testing | Pending |
+| TEST-02 | Phase 4: Testing | Pending |
+| TEST-03 | Phase 4: Testing | Pending |
+| TEST-04 | Phase 4: Testing | Pending |
+| INFRA-01 | Phase 5: Infrastructure | Pending |
+| INFRA-02 | Phase 5: Infrastructure | Pending |
+| INFRA-03 | Phase 5: Infrastructure | Pending |
+| INFRA-04 | Phase 5: Infrastructure | Pending |
 
 **Coverage:**
 - v1 requirements: 20 total
 - Mapped to phases: 20
-- Unmapped: 0 ✓
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-02-04*
-*Last updated: 2026-02-04 after initial definition*
+*Last updated: 2026-02-04 after roadmap creation*
