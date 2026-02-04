@@ -12,19 +12,20 @@ import re
 import pytest
 from fastapi.testclient import TestClient
 
-# Set test API key before importing app (must be done early)
-# The hash of 'test-api-key-12345' is computed and set as env var
-TEST_API_KEY = "test-api-key-12345"
-TEST_API_KEY_HASH = "a7f5397443359ea76c2bda898e7c49ece2e2d7a7c6cc2b7968f3f9c5d2d7a1e2"
-
-# Override settings before app import
-os.environ["API_KEY_HASH"] = TEST_API_KEY_HASH
-
+# Import auth module first to compute hash
 from src.auth import hash_api_key
 
-# Verify the hash is correct (this is the actual hash we need)
-ACTUAL_HASH = hash_api_key(TEST_API_KEY)
-os.environ["API_KEY_HASH"] = ACTUAL_HASH
+# Set test API key and compute its hash
+TEST_API_KEY = "test-api-key-12345"
+TEST_API_KEY_HASH = hash_api_key(TEST_API_KEY)
+
+# Set environment variable for the API key hash
+os.environ["API_KEY_HASH"] = TEST_API_KEY_HASH
+
+# Clear the settings cache to ensure our new env var is picked up
+# This is necessary when running tests in a suite with other test modules
+from src.config import get_settings
+get_settings.cache_clear()
 
 # Now import app after setting up auth
 from app.main import app
