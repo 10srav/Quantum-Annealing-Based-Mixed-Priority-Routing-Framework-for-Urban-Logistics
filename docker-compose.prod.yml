@@ -1,0 +1,46 @@
+# Production Docker Compose Override
+#
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up
+#
+# For Docker Swarm deployment with resource limits:
+#   docker stack deploy -c docker-compose.yml -c docker-compose.prod.yml quantum-router
+#
+# This file overrides the base docker-compose.yml with production settings:
+# - Resource limits (CPU/memory) - requires Swarm mode for enforcement
+# - Production environment variables
+# - Graceful shutdown timeout (exceeds app's shutdown_timeout)
+#
+# Note: Volume mounts from base compose are retained in docker-compose mode.
+# For true production, use Swarm mode or build images without mounts.
+
+services:
+  backend:
+    environment:
+      - DWAVE_API_TOKEN=${DWAVE_API_TOKEN}
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+      - ENVIRONMENT=production
+      - SHUTDOWN_TIMEOUT=30
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+    # Graceful shutdown: Docker sends SIGTERM, waits stop_grace_period, then SIGKILL
+    # Set longer than SHUTDOWN_TIMEOUT (30s) to allow graceful drain
+    stop_grace_period: 35s
+
+  frontend:
+    environment:
+      - VITE_API_URL=${VITE_API_URL:-http://localhost:8000}
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
