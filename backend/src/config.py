@@ -29,6 +29,10 @@ class Settings(BaseSettings):
     api_host: str = "0.0.0.0"
     api_port: int = 8000
     cors_origins: list[str] = ["http://localhost:5173", "http://localhost:3000"]
+
+    # Authentication
+    # Store the SHA-256 hash of the API key, never the plaintext key
+    api_key_hash: str = ""
     
     # Experiment Settings
     max_nodes: int = 25
