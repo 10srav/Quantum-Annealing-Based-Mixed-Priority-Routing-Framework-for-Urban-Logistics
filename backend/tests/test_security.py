@@ -237,11 +237,37 @@ class TestValidateGraphPathUnit:
         assert result.name == "test-graph.json"
         assert result.parent == DATA_DIR.resolve()
 
+    def test_valid_name_with_numbers(self):
+        """Valid name with numbers should return a Path object."""
+        result = validate_graph_path("city123")
+        assert result.name == "city123.json"
+
+    def test_valid_name_with_hyphen(self):
+        """Valid name with hyphen should return a Path object."""
+        result = validate_graph_path("city-grid")
+        assert result.name == "city-grid.json"
+
+    def test_valid_name_with_underscore(self):
+        """Valid name with underscore should return a Path object."""
+        result = validate_graph_path("city_grid")
+        assert result.name == "city_grid.json"
+
     def test_traversal_raises_valueerror(self):
         """Path traversal should raise ValueError."""
         with pytest.raises(ValueError) as exc:
             validate_graph_path("../secret")
         assert "Invalid graph name" in str(exc.value)
+
+    def test_traversal_error_message_safe(self):
+        """ValueError message should not contain system paths."""
+        with pytest.raises(ValueError) as exc:
+            validate_graph_path("../../../etc/passwd")
+        error_msg = str(exc.value)
+        # Should be a safe, generic message
+        assert "Invalid graph name" in error_msg
+        # Should NOT contain actual path info
+        assert str(DATA_DIR) not in error_msg
+        assert "/etc" not in error_msg
 
     def test_dots_rejected(self):
         """Names with dots should be rejected."""
@@ -273,6 +299,16 @@ class TestValidateGraphPathUnit:
         """Empty string should be rejected."""
         with pytest.raises(ValueError):
             validate_graph_path("")
+
+    def test_unicode_rejected(self):
+        """Names with unicode characters should be rejected."""
+        with pytest.raises(ValueError):
+            validate_graph_path("city\u00e9")  # e with accent
+
+    def test_newline_rejected(self):
+        """Names with newlines should be rejected."""
+        with pytest.raises(ValueError):
+            validate_graph_path("city\ntest")
 
 
 class TestGraphNamePattern:
