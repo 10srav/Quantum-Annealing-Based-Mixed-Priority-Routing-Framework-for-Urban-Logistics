@@ -4,7 +4,6 @@ FastAPI Application for Quantum Priority Router.
 
 import asyncio
 import time
-import uuid
 from functools import partial
 
 from fastapi import FastAPI, HTTPException, Request, Depends
@@ -22,6 +21,7 @@ from src.security import validate_graph_path, DATA_DIR
 from src.auth import verify_api_key
 from src.rate_limit import limiter
 from app.logging_config import configure_logging, get_logger, is_debug_enabled
+from app.middleware import RequestContextMiddleware, get_request_id
 
 logger = get_logger(__name__)
 from src.data_models import (
@@ -32,7 +32,7 @@ from src.data_models import (
     QUBOParams,
     GenerateCityRequest,
 )
-from src.qaoa_solver import quantum_solve, get_sampler_info
+from src.qaoa_solver import quantum_solve, get_sampler_info, check_solver_health
 from src.greedy_solver import greedy_solve
 from src.metrics import compare_solutions
 from src.simulator import generate_random_city
@@ -43,7 +43,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
     """
     Middleware for structured request/response logging.
 
-    Generates a unique request_id for each request and logs:
+    Uses request_id from RequestContextMiddleware and logs:
     - request_id (UUID)
     - timestamp (ISO format)
     - method (HTTP verb)
@@ -56,11 +56,9 @@ class LoggingMiddleware(BaseHTTPMiddleware):
     """
 
     async def dispatch(self, request: Request, call_next):
-        request_id = str(uuid.uuid4())
+        # Get request_id from RequestContextMiddleware (single source of truth)
+        request_id = getattr(request.state, "request_id", "unknown")
         start_time = time.perf_counter()
-
-        # Store request_id in request.state for access in exception handlers
-        request.state.request_id = request_id
 
         # Get client IP (handle proxy scenarios)
         client_ip = request.client.host if request.client else "unknown"
@@ -99,8 +97,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
 
             logger.info("request_completed", **log_data)
 
-            # Add request_id to response headers for client correlation
-            response.headers["X-Request-ID"] = request_id
+            # Note: X-Request-ID header is added by RequestContextMiddleware
             return response
 
         except Exception as exc:
@@ -136,8 +133,12 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS configuration
+# Middleware configuration
+# Note: Middleware executes in REVERSE order of registration (last added = first to execute)
+# So we add in order: CORS, Logging, RequestContext
+# Execution order: RequestContext -> Logging -> CORS -> Route handler
 settings = get_settings()
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
@@ -146,8 +147,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Logging middleware (must be added after CORS middleware)
+# Logging middleware (runs after RequestContextMiddleware sets request_id)
 app.add_middleware(LoggingMiddleware)
+
+# Request context middleware (runs first - sets request_id for all other middleware)
+app.add_middleware(RequestContextMiddleware)
 
 # Rate limiting
 app.state.limiter = limiter
@@ -246,11 +250,36 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint."""
+    """
+    Health check endpoint with dependency status.
+
+    Returns:
+        - status: "healthy" | "degraded" | "unhealthy"
+        - service: service name
+        - timestamp: ISO timestamp
+        - dependencies: list of dependency statuses
+    """
+    from datetime import datetime, timezone
+
+    # Check dependencies
+    solver_health = check_solver_health()
+
+    dependencies = [solver_health]
+
+    # Determine overall status (worst of all dependencies)
+    statuses = [d["status"] for d in dependencies]
+    if "unhealthy" in statuses:
+        overall_status = "unhealthy"
+    elif "degraded" in statuses:
+        overall_status = "degraded"
+    else:
+        overall_status = "healthy"
+
     return {
-        "status": "healthy",
+        "status": overall_status,
         "service": "quantum-priority-router",
-        "qaoa_info": get_sampler_info()
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "dependencies": dependencies
     }
 
 
