@@ -17,6 +17,14 @@ from structlog.typing import Processor
 # Environment-based log level (default INFO for production)
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
 
+# Numeric log level for comparisons
+_configured_level: int = logging.INFO
+
+
+def is_debug_enabled() -> bool:
+    """Check if DEBUG level logging is enabled."""
+    return _configured_level <= logging.DEBUG
+
 
 def configure_logging(log_level: str | None = None) -> None:
     """
@@ -31,8 +39,10 @@ def configure_logging(log_level: str | None = None) -> None:
     Args:
         log_level: Override log level (default: from LOG_LEVEL env var)
     """
+    global _configured_level
     level = log_level or LOG_LEVEL
     numeric_level = getattr(logging, level, logging.INFO)
+    _configured_level = numeric_level
 
     # Shared processors for both structlog and stdlib integration
     shared_processors: list[Processor] = [

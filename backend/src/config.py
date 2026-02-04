@@ -40,6 +40,9 @@ class Settings(BaseSettings):
 
     # Timeout Settings
     solver_timeout_seconds: int = 30  # Max time for solver endpoints
+
+    # Logging
+    log_level: str = "INFO"  # DEBUG shows request/response bodies
     
     # Experiment Settings
     max_nodes: int = 25

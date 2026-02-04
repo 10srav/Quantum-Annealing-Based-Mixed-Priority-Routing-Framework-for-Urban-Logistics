@@ -3,7 +3,8 @@ FastAPI Application for Quantum Priority Router.
 """
 
 import asyncio
-import logging
+import time
+import uuid
 from functools import partial
 
 from fastapi import FastAPI, HTTPException, Request, Depends
@@ -11,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.middleware.base import BaseHTTPMiddleware
 from contextlib import asynccontextmanager
 import json
 
@@ -19,8 +21,9 @@ from slowapi.errors import RateLimitExceeded
 from src.security import validate_graph_path, DATA_DIR
 from src.auth import verify_api_key
 from src.rate_limit import limiter
+from app.logging_config import configure_logging, get_logger, is_debug_enabled
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 from src.data_models import (
     CityGraph,
     SolverRequest,
@@ -36,14 +39,94 @@ from src.simulator import generate_random_city
 from src.config import get_settings
 
 
+class LoggingMiddleware(BaseHTTPMiddleware):
+    """
+    Middleware for structured request/response logging.
+
+    Generates a unique request_id for each request and logs:
+    - request_id (UUID)
+    - timestamp (ISO format)
+    - method (HTTP verb)
+    - path (endpoint)
+    - status_code
+    - duration_ms
+    - client_ip
+
+    At DEBUG level, also logs request/response bodies.
+    """
+
+    async def dispatch(self, request: Request, call_next):
+        request_id = str(uuid.uuid4())
+        start_time = time.perf_counter()
+
+        # Store request_id in request.state for access in exception handlers
+        request.state.request_id = request_id
+
+        # Get client IP (handle proxy scenarios)
+        client_ip = request.client.host if request.client else "unknown"
+        forwarded_for = request.headers.get("x-forwarded-for")
+        if forwarded_for:
+            client_ip = forwarded_for.split(",")[0].strip()
+
+        # Log request body at DEBUG level only
+        request_body = None
+        if is_debug_enabled() and request.method in ("POST", "PUT", "PATCH"):
+            try:
+                body_bytes = await request.body()
+                request_body = body_bytes.decode("utf-8")
+                # Reconstruct request body stream for downstream handlers
+                # FastAPI will re-read from the cached body
+            except Exception:
+                request_body = "<unreadable>"
+
+        try:
+            response = await call_next(request)
+            duration_ms = (time.perf_counter() - start_time) * 1000
+
+            # Log the request with all metadata
+            log_data = {
+                "request_id": request_id,
+                "method": request.method,
+                "path": request.url.path,
+                "status_code": response.status_code,
+                "duration_ms": round(duration_ms, 2),
+                "client_ip": client_ip,
+            }
+
+            # Add request body at DEBUG level
+            if request_body:
+                log_data["request_body"] = request_body
+
+            logger.info("request_completed", **log_data)
+
+            # Add request_id to response headers for client correlation
+            response.headers["X-Request-ID"] = request_id
+            return response
+
+        except Exception as exc:
+            duration_ms = (time.perf_counter() - start_time) * 1000
+            logger.error(
+                "request_failed",
+                request_id=request_id,
+                method=request.method,
+                path=request.url.path,
+                duration_ms=round(duration_ms, 2),
+                client_ip=client_ip,
+                error=str(exc),
+            )
+            raise
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan handler."""
-    # Startup
-    print("Quantum Priority Router API starting...")
+    # Startup: Configure structured logging
+    settings = get_settings()
+    configure_logging(settings.log_level)
+    logger.info("startup", service="quantum-priority-router", log_level=settings.log_level)
     yield
     # Shutdown
-    print("Shutting down...")
+    logger.info("shutdown", service="quantum-priority-router")
 
 
 app = FastAPI(
@@ -62,6 +145,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Logging middleware (must be added after CORS middleware)
+app.add_middleware(LoggingMiddleware)
 
 # Rate limiting
 app.state.limiter = limiter
@@ -134,14 +220,27 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    """Catch-all for unexpected errors. Logs full details, returns safe message."""
+    """Catch-all for unexpected errors. Logs full details, returns safe message with request_id."""
+    # Get request_id if available from middleware
+    request_id = getattr(request.state, "request_id", None)
+
     logger.error(
-        f"Unhandled exception on {request.method} {request.url.path}",
-        exc_info=True
+        "unhandled_exception",
+        request_id=request_id,
+        method=request.method,
+        path=request.url.path,
+        error_type=type(exc).__name__,
+        error=str(exc),
     )
+
+    # Include request_id in response for support reference
+    response_content = {"detail": "An internal error occurred. Please try again later."}
+    if request_id:
+        response_content["request_id"] = request_id
+
     return JSONResponse(
         status_code=500,
-        content={"detail": "An internal error occurred. Please try again later."}
+        content=response_content
     )
 
 
