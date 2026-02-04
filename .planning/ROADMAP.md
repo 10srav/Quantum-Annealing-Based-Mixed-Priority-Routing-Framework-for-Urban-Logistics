@@ -77,12 +77,12 @@ Plans:
   2. Test suite includes path traversal attempts and verifies error messages contain no internal paths
   3. Test suite verifies QUBO one-hot constraints are satisfied and priority nodes appear before normal nodes in solutions
   4. Test suite verifies mock sampler returns complete routes that visit all nodes
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 04-01: API input validation test suite
-- [ ] 04-02: Security test suite
-- [ ] 04-03: QUBO and solver correctness tests
+- [ ] 04-01-PLAN.md - API input validation test suite
+- [ ] 04-02-PLAN.md - Security test suite
+- [ ] 04-03-PLAN.md - QUBO and solver correctness tests
 
 ### Phase 5: Infrastructure
 **Goal**: Application is deployable to production with proper configuration
@@ -110,7 +110,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 | 1. Security Hardening | 3/3 | ✓ Complete | 2026-02-05 |
 | 2. Authentication | 0/3 | Not started | - |
 | 3. Observability | 0/3 | Planned | - |
-| 4. Testing | 0/3 | Not started | - |
+| 4. Testing | 0/3 | Planned | - |
 | 5. Infrastructure | 0/3 | Planned | - |
 
 ---
