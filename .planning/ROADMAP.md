@@ -29,12 +29,12 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. API error responses contain generic messages only (no stack traces, file paths, or library names visible to clients)
   3. Node count requests above 25 are rejected with clear validation error
   4. Malformed JSON and missing required fields return 400 with field-specific validation messages
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 01-01: Path traversal fix and file access hardening
-- [ ] 01-02: Error sanitization and exception handling
-- [ ] 01-03: Input validation with Pydantic models
+- [ ] 01-01-PLAN.md - Path traversal fix and file access hardening
+- [ ] 01-02-PLAN.md - Error sanitization and exception handling
+- [ ] 01-03-PLAN.md - Input validation with Pydantic models
 
 ### Phase 2: Authentication
 **Goal**: API access is controlled and protected from abuse
