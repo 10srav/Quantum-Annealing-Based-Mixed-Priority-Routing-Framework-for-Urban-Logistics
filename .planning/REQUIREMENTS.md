@@ -16,31 +16,31 @@ Requirements for production hardening release. Each maps to roadmap phases.
 
 ### Authentication
 
-- [ ] **AUTH-01**: API endpoints require valid API key in header
-- [ ] **AUTH-02**: API keys stored securely with hashed comparison
-- [ ] **AUTH-03**: Rate limiting applied per API key (configurable limits)
-- [ ] **AUTH-04**: Request timeout configured for solver endpoints (prevent hanging)
+- [x] **AUTH-01**: API endpoints require valid API key in header ✓
+- [x] **AUTH-02**: API keys stored securely with hashed comparison ✓
+- [x] **AUTH-03**: Rate limiting applied per API key (configurable limits) ✓
+- [x] **AUTH-04**: Request timeout configured for solver endpoints (prevent hanging) ✓
 
 ### Observability
 
-- [ ] **OBS-01**: Structured JSON logging with request IDs for all requests
-- [ ] **OBS-02**: Health endpoint reports dependency status (solver availability)
-- [ ] **OBS-03**: Error logging includes context without exposing to clients
-- [ ] **OBS-04**: Request/response logging for debugging (configurable verbosity)
+- [x] **OBS-01**: Structured JSON logging with request IDs for all requests ✓
+- [x] **OBS-02**: Health endpoint reports dependency status (solver availability) ✓
+- [x] **OBS-03**: Error logging includes context without exposing to clients ✓
+- [x] **OBS-04**: Request/response logging for debugging (configurable verbosity) ✓
 
 ### Testing
 
-- [ ] **TEST-01**: API input validation tests (malformed JSON, missing fields, invalid ranges)
-- [ ] **TEST-02**: Security tests (path traversal attempts, error message leakage)
-- [ ] **TEST-03**: QUBO constraint enforcement tests (one-hot, priority ordering)
-- [ ] **TEST-04**: Mock sampler correctness tests (valid solutions, route completeness)
+- [x] **TEST-01**: API input validation tests (malformed JSON, missing fields, invalid ranges) ✓
+- [x] **TEST-02**: Security tests (path traversal attempts, error message leakage) ✓
+- [x] **TEST-03**: QUBO constraint enforcement tests (one-hot, priority ordering) ✓
+- [x] **TEST-04**: Mock sampler correctness tests (valid solutions, route completeness) ✓
 
 ### Infrastructure
 
-- [ ] **INFRA-01**: Production Dockerfile with multi-stage build
-- [ ] **INFRA-02**: Environment-based CORS configuration (dev/staging/prod)
-- [ ] **INFRA-03**: Graceful shutdown handling for in-flight requests
-- [ ] **INFRA-04**: Docker Compose production profile with resource limits
+- [x] **INFRA-01**: Production Dockerfile with multi-stage build ✓
+- [x] **INFRA-02**: Environment-based CORS configuration (dev/staging/prod) ✓
+- [x] **INFRA-03**: Graceful shutdown handling for in-flight requests ✓
+- [x] **INFRA-04**: Docker Compose production profile with resource limits ✓
 
 ## v2 Requirements
 
@@ -83,22 +83,22 @@ Deferred to future release. Tracked but not in current roadmap.
 | SEC-02 | Phase 1: Security Hardening | Complete |
 | SEC-03 | Phase 1: Security Hardening | Complete |
 | SEC-04 | Phase 1: Security Hardening | Complete |
-| AUTH-01 | Phase 2: Authentication | Pending |
-| AUTH-02 | Phase 2: Authentication | Pending |
-| AUTH-03 | Phase 2: Authentication | Pending |
-| AUTH-04 | Phase 2: Authentication | Pending |
-| OBS-01 | Phase 3: Observability | Pending |
-| OBS-02 | Phase 3: Observability | Pending |
-| OBS-03 | Phase 3: Observability | Pending |
-| OBS-04 | Phase 3: Observability | Pending |
-| TEST-01 | Phase 4: Testing | Pending |
-| TEST-02 | Phase 4: Testing | Pending |
-| TEST-03 | Phase 4: Testing | Pending |
-| TEST-04 | Phase 4: Testing | Pending |
-| INFRA-01 | Phase 5: Infrastructure | Pending |
-| INFRA-02 | Phase 5: Infrastructure | Pending |
-| INFRA-03 | Phase 5: Infrastructure | Pending |
-| INFRA-04 | Phase 5: Infrastructure | Pending |
+| AUTH-01 | Phase 2: Authentication | Complete |
+| AUTH-02 | Phase 2: Authentication | Complete |
+| AUTH-03 | Phase 2: Authentication | Complete |
+| AUTH-04 | Phase 2: Authentication | Complete |
+| OBS-01 | Phase 3: Observability | Complete |
+| OBS-02 | Phase 3: Observability | Complete |
+| OBS-03 | Phase 3: Observability | Complete |
+| OBS-04 | Phase 3: Observability | Complete |
+| TEST-01 | Phase 4: Testing | Complete |
+| TEST-02 | Phase 4: Testing | Complete |
+| TEST-03 | Phase 4: Testing | Complete |
+| TEST-04 | Phase 4: Testing | Complete |
+| INFRA-01 | Phase 5: Infrastructure | Complete |
+| INFRA-02 | Phase 5: Infrastructure | Complete |
+| INFRA-03 | Phase 5: Infrastructure | Complete |
+| INFRA-04 | Phase 5: Infrastructure | Complete |
 
 **Coverage:**
 - v1 requirements: 20 total
@@ -107,4 +107,4 @@ Deferred to future release. Tracked but not in current roadmap.
 
 ---
 *Requirements defined: 2026-02-04*
-*Last updated: 2026-02-04 after roadmap creation*
+*Last updated: 2026-02-05 - All 20 v1 requirements complete*
