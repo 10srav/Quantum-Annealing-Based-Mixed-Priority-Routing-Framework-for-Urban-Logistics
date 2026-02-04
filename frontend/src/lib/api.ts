@@ -13,9 +13,12 @@ import type {
 } from './types';
 
 class ApiError extends Error {
-    constructor(public status: number, message: string) {
+    status: number;
+
+    constructor(status: number, message: string) {
         super(message);
         this.name = 'ApiError';
+        this.status = status;
     }
 }
 
@@ -78,20 +81,20 @@ export async function generateCity(
     trafficProfile: string = 'mixed',
     seed?: number
 ): Promise<CityGraph> {
-    const params = new URLSearchParams({
-        n_nodes: nNodes.toString(),
-        priority_ratio: priorityRatio.toString(),
+    const body: Record<string, unknown> = {
+        n_nodes: nNodes,
+        priority_ratio: priorityRatio,
         traffic_profile: trafficProfile,
-    });
+    };
 
     if (seed !== undefined) {
-        params.append('seed', seed.toString());
+        body.seed = seed;
     }
 
-    return fetchApi<CityGraph>(
-        `${API_ENDPOINTS.generateCity}?${params.toString()}`,
-        { method: 'POST' }
-    );
+    return fetchApi<CityGraph>(API_ENDPOINTS.generateCity, {
+        method: 'POST',
+        body: JSON.stringify(body),
+    });
 }
 
 /**

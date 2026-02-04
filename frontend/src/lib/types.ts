@@ -85,17 +85,23 @@ export interface GraphListResponse {
 }
 
 // Health Check
+export interface HealthDependency {
+  name: string;
+  status: string;
+  details: {
+    qiskit_available?: boolean;
+    qiskit_components?: string;
+    sampler_init?: string;
+    message?: string;
+    error?: string;
+  };
+}
+
 export interface HealthResponse {
   status: string;
   service: string;
-  qaoa_info: {
-    qiskit_available: boolean;
-    use_mock: boolean;
-    qaoa_reps: number;
-    qaoa_shots: number;
-    qiskit_version?: string;
-    error?: string;
-  };
+  timestamp: string;
+  dependencies: HealthDependency[];
 }
 
 // UI State

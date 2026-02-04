@@ -1,11 +1,14 @@
 /**
  * Interactive OSM Map - Click to add points, set priorities
+ * Uses OSRM for real road routing
  */
 
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import 'leaflet-routing-machine';
+import 'leaflet-routing-machine/dist/leaflet-routing-machine.css';
 import type { CityGraph, Node, Edge } from '../lib/types';
 
 // Fix for default marker icons
@@ -87,6 +90,98 @@ const FitBounds: React.FC<{ bounds: L.LatLngBounds | null }> = ({ bounds }) => {
     return null;
 };
 
+// OSRM Routing component - fetches real road routes
+const OSRMRoute: React.FC<{
+    waypoints: [number, number][];
+    color?: string;
+}> = ({ waypoints, color = '#10b981' }) => {
+    const map = useMap();
+    const routingControlRef = useRef<L.Routing.Control | null>(null);
+    const [routeCoords, setRouteCoords] = useState<[number, number][]>([]);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (waypoints.length < 2) {
+            setRouteCoords([]);
+            return;
+        }
+
+        // Use OSRM API directly for cleaner integration
+        const fetchRoute = async () => {
+            setLoading(true);
+            setError(null);
+
+            try {
+                // Build OSRM URL - coordinates are lng,lat format
+                const coords = waypoints.map(wp => `${wp[1]},${wp[0]}`).join(';');
+                const url = `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`;
+
+                const response = await fetch(url);
+                const data = await response.json();
+
+                if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
+                    // OSRM returns coordinates as [lng, lat], we need [lat, lng] for Leaflet
+                    const coordinates = data.routes[0].geometry.coordinates.map(
+                        (coord: [number, number]) => [coord[1], coord[0]] as [number, number]
+                    );
+                    setRouteCoords(coordinates);
+                } else {
+                    setError('No route found');
+                    // Fallback to straight lines
+                    setRouteCoords(waypoints);
+                }
+            } catch (err) {
+                console.error('OSRM routing error:', err);
+                setError('Routing service unavailable');
+                // Fallback to straight lines
+                setRouteCoords(waypoints);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchRoute();
+    }, [waypoints]);
+
+    if (routeCoords.length < 2) return null;
+
+    return (
+        <>
+            <Polyline
+                positions={routeCoords}
+                color={color}
+                weight={5}
+                opacity={0.8}
+            />
+            {/* Route direction arrows */}
+            {routeCoords.length > 10 && (
+                <Polyline
+                    positions={routeCoords}
+                    color={color}
+                    weight={5}
+                    opacity={0.8}
+                    dashArray="15, 20"
+                />
+            )}
+            {loading && (
+                <div style={{
+                    position: 'absolute',
+                    top: 10,
+                    right: 10,
+                    background: 'rgba(0,0,0,0.7)',
+                    color: 'white',
+                    padding: '5px 10px',
+                    borderRadius: 4,
+                    zIndex: 1000,
+                }}>
+                    Loading route...
+                </div>
+            )}
+        </>
+    );
+};
+
 export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     graph,
     route = [],
@@ -98,6 +193,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     const [edges, setEdges] = useState<Edge[]>(graph?.edges || []);
     const [selectedNodeType, setSelectedNodeType] = useState<'priority' | 'normal'>('priority');
     const [editMode, setEditMode] = useState<'add' | 'select' | 'delete'>('add');
+    const [showRoadRoutes, setShowRoadRoutes] = useState(true);
     const cityCenter = CITY_CENTERS.hyderabad;
 
     // Sync with external graph changes
@@ -235,7 +331,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         return { nodePositions: positions, bounds: null };
     }, [nodes, xyToLatLng]);
 
-    // Edge lines
+    // Edge lines (keep as straight lines for graph visualization)
     const edgeLines = useMemo(() => {
         return edges.map(edge => {
             const from = nodePositions.get(edge.from);
@@ -249,8 +345,8 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         }).filter(Boolean);
     }, [edges, nodePositions]);
 
-    // Route path
-    const routePath = useMemo(() => {
+    // Route waypoints for OSRM
+    const routeWaypoints = useMemo(() => {
         if (!highlightRoute || route.length === 0) return [];
         return route.map(nodeId => nodePositions.get(nodeId)).filter(Boolean) as [number, number][];
     }, [route, highlightRoute, nodePositions]);
@@ -302,6 +398,16 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
                         </div>
                     )}
 
+                    <div className="toolbar-group">
+                        <button
+                            className={`toolbar-btn ${showRoadRoutes ? 'active' : ''}`}
+                            onClick={() => setShowRoadRoutes(!showRoadRoutes)}
+                            title="Toggle real road routing"
+                        >
+                            🛣️ Road Routes
+                        </button>
+                    </div>
+
                     <button className="toolbar-btn danger" onClick={handleClearAll}>
                         🧹 Clear All
                     </button>
@@ -313,6 +419,9 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
                 <span>🔴 {nodes.filter(n => n.type === 'priority').length} priority</span>
                 <span>🔵 {nodes.filter(n => n.type === 'normal').length} normal</span>
                 <span>🔗 {edges.length} connections</span>
+                {showRoadRoutes && routeWaypoints.length > 1 && (
+                    <span>🛣️ Real roads</span>
+                )}
             </div>
 
             <MapContainer
@@ -329,26 +438,30 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
                 <MapClickHandler onMapClick={handleMapClick} enabled={editMode === 'add'} />
                 <FitBounds bounds={bounds} />
 
-                {/* Edge lines */}
+                {/* Edge lines (graph connections) */}
                 {edgeLines.map((edge, i) => edge && (
                     <Polyline
                         key={`edge-${i}`}
                         positions={[edge.from, edge.to]}
                         color={edge.color}
                         weight={2}
-                        opacity={0.5}
+                        opacity={0.4}
                         dashArray="5, 5"
                     />
                 ))}
 
-                {/* Route path */}
-                {routePath.length > 1 && (
-                    <Polyline
-                        positions={routePath}
-                        color="#10b981"
-                        weight={4}
-                        opacity={0.9}
-                    />
+                {/* Route path - use OSRM for real roads or straight lines */}
+                {routeWaypoints.length > 1 && (
+                    showRoadRoutes ? (
+                        <OSRMRoute waypoints={routeWaypoints} color="#10b981" />
+                    ) : (
+                        <Polyline
+                            positions={routeWaypoints}
+                            color="#10b981"
+                            weight={4}
+                            opacity={0.9}
+                        />
+                    )
                 )}
 
                 {/* Node markers */}
@@ -388,6 +501,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
                 <div className="legend-item"><span className="legend-line low"></span> Low traffic</div>
                 <div className="legend-item"><span className="legend-line medium"></span> Medium traffic</div>
                 <div className="legend-item"><span className="legend-line high"></span> High traffic</div>
+                {showRoadRoutes && <div className="legend-item"><span className="legend-line" style={{background: '#10b981'}}></span> OSRM Road Route</div>}
             </div>
         </div>
     );

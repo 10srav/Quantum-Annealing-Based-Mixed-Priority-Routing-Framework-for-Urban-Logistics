@@ -70,7 +70,7 @@ function App() {
         <div className="health-status">
           {health ? (
             <span className={`status-badge ${health.status === 'healthy' ? 'ok' : 'error'}`}>
-              {health.qaoa_info.qiskit_available ? '⚛️ QAOA' : '🔌 Mock Mode'}
+              {health.status === 'healthy' ? '⚛️ QAOA' : '🔌 Mock Mode'}
             </span>
           ) : (
             <span className="status-badge loading">Connecting...</span>
