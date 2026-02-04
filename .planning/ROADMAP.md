@@ -61,12 +61,12 @@ Plans:
   2. Health endpoint reports solver availability status and can detect when Qiskit is unavailable
   3. Errors are logged with full context server-side while clients receive only request ID for support reference
   4. Request/response bodies can be logged at DEBUG level without appearing in production INFO logs
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 03-01: Structured logging with structlog
-- [ ] 03-02: Health check endpoint with dependency status
-- [ ] 03-03: Request context and correlation IDs
+- [ ] 03-01-PLAN.md - Structured logging with structlog
+- [ ] 03-02-PLAN.md - Health check endpoint with dependency status
+- [ ] 03-03-PLAN.md - Request context and correlation IDs
 
 ### Phase 4: Testing
 **Goal**: Security hardening and solver correctness are validated with automated tests
@@ -109,7 +109,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 |-------|----------------|--------|-----------|
 | 1. Security Hardening | 3/3 | ✓ Complete | 2026-02-05 |
 | 2. Authentication | 0/3 | Not started | - |
-| 3. Observability | 0/3 | Not started | - |
+| 3. Observability | 0/3 | Planned | - |
 | 4. Testing | 0/3 | Not started | - |
 | 5. Infrastructure | 0/3 | Not started | - |
 
