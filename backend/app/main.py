@@ -2,12 +2,19 @@
 FastAPI Application for Quantum Priority Router.
 """
 
-from fastapi import FastAPI, HTTPException
+import logging
+
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from contextlib import asynccontextmanager
 import json
-import os
 
+from src.security import validate_graph_path, DATA_DIR
+
+logger = logging.getLogger(__name__)
 from src.data_models import (
     CityGraph,
     SolverRequest,
@@ -50,6 +57,42 @@ app.add_middleware(
 )
 
 
+# Exception handlers - sanitize errors before returning to clients
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Handle Pydantic validation errors with field-specific messages."""
+    errors = []
+    for error in exc.errors():
+        field = ".".join(str(loc) for loc in error["loc"])
+        errors.append({"field": field, "message": error["msg"]})
+    return JSONResponse(
+        status_code=400,
+        content={"detail": "Validation error", "errors": errors}
+    )
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    """Handle HTTP exceptions with consistent format."""
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail}
+    )
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Catch-all for unexpected errors. Logs full details, returns safe message."""
+    logger.error(
+        f"Unhandled exception on {request.method} {request.url.path}",
+        exc_info=True
+    )
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "An internal error occurred. Please try again later."}
+    )
+
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
@@ -64,24 +107,20 @@ async def health_check():
 async def solve_route(request: SolverRequest):
     """
     Solve routing problem using specified solver.
-    
+
     - **quantum**: Uses QAOA (Quantum Approximate Optimization Algorithm)
     - **greedy**: Uses nearest-neighbor heuristic
     """
-    try:
-        if request.solver == "quantum":
-            result = quantum_solve(
-                request.graph,
-                request.params,
-                use_mock=settings.qaoa_use_mock
-            )
-        else:
-            result = greedy_solve(request.graph)
-        
-        return result
-    
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    if request.solver == "quantum":
+        result = quantum_solve(
+            request.graph,
+            request.params,
+            use_mock=settings.qaoa_use_mock
+        )
+    else:
+        result = greedy_solve(request.graph)
+
+    return result
 
 
 @app.post("/compare", response_model=ComparisonResponse)
@@ -89,17 +128,13 @@ async def compare_solvers(graph: CityGraph):
     """
     Run both quantum and greedy solvers and compare results.
     """
-    try:
-        quantum_result = quantum_solve(
-            graph,
-            use_mock=settings.qaoa_use_mock
-        )
-        greedy_result = greedy_solve(graph)
-        
-        return compare_solutions(greedy_result, quantum_result)
-    
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    quantum_result = quantum_solve(
+        graph,
+        use_mock=settings.qaoa_use_mock
+    )
+    greedy_result = greedy_solve(graph)
+
+    return compare_solutions(greedy_result, quantum_result)
 
 
 @app.post("/generate-city", response_model=CityGraph)
@@ -112,15 +147,12 @@ async def generate_city(
     """
     Generate a random city graph for testing.
     """
-    try:
-        return generate_random_city(
-            n_nodes=n_nodes,
-            priority_ratio=priority_ratio,
-            traffic_profile=traffic_profile,
-            seed=seed
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    return generate_random_city(
+        n_nodes=n_nodes,
+        priority_ratio=priority_ratio,
+        traffic_profile=traffic_profile,
+        seed=seed
+    )
 
 
 @app.get("/graphs")
@@ -128,17 +160,16 @@ async def list_graphs():
     """
     List available sample city graphs.
     """
-    data_dir = os.path.join(os.path.dirname(__file__), "..", "data")
     graphs = []
-    
-    if os.path.exists(data_dir):
-        for filename in os.listdir(data_dir):
-            if filename.endswith(".json"):
+
+    if DATA_DIR.exists():
+        for filepath in DATA_DIR.iterdir():
+            if filepath.suffix == ".json":
                 graphs.append({
-                    "name": filename.replace(".json", ""),
-                    "path": f"/graphs/{filename.replace('.json', '')}"
+                    "name": filepath.stem,
+                    "path": f"/graphs/{filepath.stem}"
                 })
-    
+
     return {"graphs": graphs}
 
 
@@ -146,16 +177,21 @@ async def list_graphs():
 async def get_graph(graph_name: str):
     """
     Get a specific sample city graph.
+
+    Security: Uses allowlist validation to prevent path traversal attacks.
+    Only alphanumeric names with hyphens/underscores are accepted.
     """
-    data_dir = os.path.join(os.path.dirname(__file__), "..", "data")
-    filepath = os.path.join(data_dir, f"{graph_name}.json")
-    
-    if not os.path.exists(filepath):
+    try:
+        filepath = validate_graph_path(graph_name)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    if not filepath.exists():
         raise HTTPException(status_code=404, detail="Graph not found")
-    
+
     with open(filepath, "r") as f:
         data = json.load(f)
-    
+
     return data
 
 
