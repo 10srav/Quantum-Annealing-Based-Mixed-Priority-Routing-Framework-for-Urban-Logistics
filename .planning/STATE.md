@@ -68,6 +68,9 @@ Recent decisions affecting current work:
 - [04-01]: Validation helper function for consistent test assertions
 - [04-02]: Env var + cache clear for test API key setup (ensures test isolation)
 - [04-03]: Test relative QUBO penalty differences instead of absolute values
+- [05-01]: Multi-stage Docker build (builder for pip, runtime for app only)
+- [05-01]: Non-root appuser (uid 1000) for container security
+- [05-01]: Copy venv from builder via COPY --from=builder pattern
 - [05-02]: Property for cors_origins to bypass pydantic-settings JSON parsing
 - [05-02]: Support comma-separated and JSON array CORS formats
 - [05-02]: Reject wildcard CORS in production only
