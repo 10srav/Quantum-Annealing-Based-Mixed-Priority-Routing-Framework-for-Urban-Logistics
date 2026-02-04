@@ -165,11 +165,15 @@ async def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
     Note: We use a custom handler instead of slowapi's default because
     headers_enabled=True causes errors with FastAPI response models.
     """
+    request_id = getattr(request.state, "request_id", "unknown")
     # Approximate retry time: 60 seconds for per-minute rate limits
     retry_after = 60
     return JSONResponse(
         status_code=429,
-        content={"detail": f"Rate limit exceeded: {exc.detail}"},
+        content={
+            "detail": f"Rate limit exceeded: {exc.detail}",
+            "request_id": request_id
+        },
         headers={"Retry-After": str(retry_after)}
     )
 
@@ -203,30 +207,39 @@ async def run_solver_with_timeout(solver_func, *args, **kwargs):
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     """Handle Pydantic validation errors with field-specific messages."""
+    request_id = getattr(request.state, "request_id", "unknown")
     errors = []
     for error in exc.errors():
         field = ".".join(str(loc) for loc in error["loc"])
         errors.append({"field": field, "message": error["msg"]})
     return JSONResponse(
         status_code=400,
-        content={"detail": "Validation error", "errors": errors}
+        content={
+            "detail": "Validation error",
+            "errors": errors,
+            "request_id": request_id
+        }
     )
 
 
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request: Request, exc: StarletteHTTPException):
-    """Handle HTTP exceptions with consistent format."""
+    """Handle HTTP exceptions with consistent format including request_id."""
+    request_id = getattr(request.state, "request_id", "unknown")
     return JSONResponse(
         status_code=exc.status_code,
-        content={"detail": exc.detail}
+        content={
+            "detail": exc.detail,
+            "request_id": request_id
+        }
     )
 
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     """Catch-all for unexpected errors. Logs full details, returns safe message with request_id."""
-    # Get request_id if available from middleware
-    request_id = getattr(request.state, "request_id", None)
+    # Get request_id from middleware (always available via RequestContextMiddleware)
+    request_id = getattr(request.state, "request_id", "unknown")
 
     logger.error(
         "unhandled_exception",
@@ -234,17 +247,17 @@ async def global_exception_handler(request: Request, exc: Exception):
         method=request.method,
         path=request.url.path,
         error_type=type(exc).__name__,
-        error=str(exc),
+        error_message=str(exc),
+        exc_info=True
     )
 
-    # Include request_id in response for support reference
-    response_content = {"detail": "An internal error occurred. Please try again later."}
-    if request_id:
-        response_content["request_id"] = request_id
-
+    # Return safe message with request_id for support reference
     return JSONResponse(
         status_code=500,
-        content=response_content
+        content={
+            "detail": "An internal error occurred. Please try again later.",
+            "request_id": request_id
+        }
     )
 
 
