@@ -12,7 +12,7 @@ This roadmap transforms the functional quantum routing prototype into a producti
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Security Hardening** - Fix vulnerabilities, sanitize errors, validate inputs
+- [x] **Phase 1: Security Hardening** - Fix vulnerabilities, sanitize errors, validate inputs ✓
 - [ ] **Phase 2: Authentication** - API key auth with rate limiting and timeouts
 - [ ] **Phase 3: Observability** - Structured logging, health checks, request tracing
 - [ ] **Phase 4: Testing** - Validation tests, security tests, solver correctness tests
@@ -32,9 +32,9 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 3 plans
 
 Plans:
-- [ ] 01-01-PLAN.md - Path traversal fix and file access hardening
-- [ ] 01-02-PLAN.md - Error sanitization and exception handling
-- [ ] 01-03-PLAN.md - Input validation with Pydantic models
+- [x] 01-01-PLAN.md - Path traversal fix and file access hardening ✓
+- [x] 01-02-PLAN.md - Error sanitization and exception handling ✓
+- [x] 01-03-PLAN.md - Input validation with Pydantic models ✓
 
 ### Phase 2: Authentication
 **Goal**: API access is controlled and protected from abuse
@@ -107,7 +107,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Security Hardening | 0/3 | Not started | - |
+| 1. Security Hardening | 3/3 | ✓ Complete | 2026-02-05 |
 | 2. Authentication | 0/3 | Not started | - |
 | 3. Observability | 0/3 | Not started | - |
 | 4. Testing | 0/3 | Not started | - |

@@ -9,10 +9,10 @@ Requirements for production hardening release. Each maps to roadmap phases.
 
 ### Security
 
-- [ ] **SEC-01**: Graph file paths validated against allowlist before loading
-- [ ] **SEC-02**: API error responses sanitized (no stack traces, file paths, or internal details)
-- [ ] **SEC-03**: Node count parameter validated against max_nodes limit (25)
-- [ ] **SEC-04**: All user inputs validated with Pydantic models before processing
+- [x] **SEC-01**: Graph file paths validated against allowlist before loading ✓
+- [x] **SEC-02**: API error responses sanitized (no stack traces, file paths, or internal details) ✓
+- [x] **SEC-03**: Node count parameter validated against max_nodes limit (25) ✓
+- [x] **SEC-04**: All user inputs validated with Pydantic models before processing ✓
 
 ### Authentication
 
@@ -79,10 +79,10 @@ Deferred to future release. Tracked but not in current roadmap.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SEC-01 | Phase 1: Security Hardening | Pending |
-| SEC-02 | Phase 1: Security Hardening | Pending |
-| SEC-03 | Phase 1: Security Hardening | Pending |
-| SEC-04 | Phase 1: Security Hardening | Pending |
+| SEC-01 | Phase 1: Security Hardening | Complete |
+| SEC-02 | Phase 1: Security Hardening | Complete |
+| SEC-03 | Phase 1: Security Hardening | Complete |
+| SEC-04 | Phase 1: Security Hardening | Complete |
 | AUTH-01 | Phase 2: Authentication | Pending |
 | AUTH-02 | Phase 2: Authentication | Pending |
 | AUTH-03 | Phase 2: Authentication | Pending |
