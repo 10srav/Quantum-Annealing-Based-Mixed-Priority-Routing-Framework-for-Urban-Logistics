@@ -22,7 +22,10 @@ def get_api_key_from_request(request: Request) -> str:
 settings = get_settings()
 
 # Create limiter with API key as the rate limit key
+# Note: headers_enabled must be False when using FastAPI response models (not Response objects)
+# We add Retry-After header manually in the exception handler
 limiter = Limiter(
     key_func=get_api_key_from_request,
-    default_limits=[f"{settings.rate_limit_per_minute}/minute"]
+    default_limits=[f"{settings.rate_limit_per_minute}/minute"],
+    headers_enabled=False
 )

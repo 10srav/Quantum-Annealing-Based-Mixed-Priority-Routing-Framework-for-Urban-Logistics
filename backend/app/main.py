@@ -14,7 +14,6 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from contextlib import asynccontextmanager
 import json
 
-from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from src.security import validate_graph_path, DATA_DIR
@@ -66,7 +65,26 @@ app.add_middleware(
 
 # Rate limiting
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+async def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
+    """
+    Handle rate limit exceeded with proper 429 response and Retry-After header.
+    RFC 6585 recommends including Retry-After header with 429 responses.
+
+    Note: We use a custom handler instead of slowapi's default because
+    headers_enabled=True causes errors with FastAPI response models.
+    """
+    # Approximate retry time: 60 seconds for per-minute rate limits
+    retry_after = 60
+    return JSONResponse(
+        status_code=429,
+        content={"detail": f"Rate limit exceeded: {exc.detail}"},
+        headers={"Retry-After": str(retry_after)}
+    )
+
+
+app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 
 
 async def run_solver_with_timeout(solver_func, *args, **kwargs):
