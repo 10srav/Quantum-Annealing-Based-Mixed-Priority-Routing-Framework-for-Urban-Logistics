@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-04)
 
 **Core value:** Demonstrate quantum advantage in constrained routing optimization - secure, reliable, production-ready
-**Current focus:** Phase 4 - Testing (COMPLETE)
+**Current focus:** Phase 5 - Infrastructure (IN PROGRESS)
 
 ## Current Position
 
-Phase: 4 of 5 (Testing)
-Plan: 3 of 3 in current phase (all complete)
-Status: Phase complete
-Last activity: 2026-02-05 - Completed 04-02-PLAN.md (Security Test Suite)
+Phase: 5 of 5 (Infrastructure)
+Plan: 2 of 3 in current phase
+Status: In progress
+Last activity: 2026-02-05 - Completed 05-02-PLAN.md (CORS Environment Configuration)
 
-Progress: [############] 80% (12/15 plans estimated)
+Progress: [#############.] 87% (13/15 plans estimated)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 12
-- Average duration: ~4.0 min
-- Total execution time: ~47 min
+- Total plans completed: 13
+- Average duration: ~4.1 min
+- Total execution time: ~53 min
 
 **By Phase:**
 
@@ -31,10 +31,11 @@ Progress: [############] 80% (12/15 plans estimated)
 | 02-authentication | 3/3 | ~17 min | ~5.7 min |
 | 03-observability | 3/3 | ~13 min | ~4.3 min |
 | 04-testing | 3/3 | ~9 min | ~3 min |
+| 05-infrastructure | 2/3 | ~6 min | ~3 min |
 
 **Recent Trend:**
-- Last 5 plans: 03-02, 03-03, 04-01, 04-03, 04-02
-- Trend: Phase 4 complete, all testing plans done (04-02 executed last)
+- Last 5 plans: 04-01, 04-03, 04-02, 05-01, 05-02
+- Trend: Phase 5 in progress, CORS configuration complete
 
 *Updated after each plan completion*
 
@@ -67,6 +68,9 @@ Recent decisions affecting current work:
 - [04-01]: Validation helper function for consistent test assertions
 - [04-02]: Env var + cache clear for test API key setup (ensures test isolation)
 - [04-03]: Test relative QUBO penalty differences instead of absolute values
+- [05-02]: Property for cors_origins to bypass pydantic-settings JSON parsing
+- [05-02]: Support comma-separated and JSON array CORS formats
+- [05-02]: Reject wildcard CORS in production only
 
 ### Pending Todos
 
@@ -89,8 +93,8 @@ From codebase audit (see .planning/codebase/CONCERNS.md):
 ## Session Continuity
 
 Last session: 2026-02-05
-Stopped at: Completed 04-02-PLAN.md (Security Test Suite)
+Stopped at: Completed 05-02-PLAN.md (CORS Environment Configuration)
 Resume file: None
 
 ---
-*Next step: Execute Phase 5 (Deployment)*
+*Next step: Execute 05-03-PLAN.md (Docker Compose)*
