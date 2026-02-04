@@ -4,7 +4,7 @@ FastAPI Application for Quantum Priority Router.
 
 import logging
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
@@ -13,6 +13,7 @@ from contextlib import asynccontextmanager
 import json
 
 from src.security import validate_graph_path, DATA_DIR
+from src.auth import verify_api_key
 
 logger = logging.getLogger(__name__)
 from src.data_models import (
@@ -105,7 +106,7 @@ async def health_check():
 
 
 @app.post("/solve", response_model=SolverResponse)
-async def solve_route(request: SolverRequest):
+async def solve_route(request: SolverRequest, _: bool = Depends(verify_api_key)):
     """
     Solve routing problem using specified solver.
 
@@ -125,7 +126,7 @@ async def solve_route(request: SolverRequest):
 
 
 @app.post("/compare", response_model=ComparisonResponse)
-async def compare_solvers(graph: CityGraph):
+async def compare_solvers(graph: CityGraph, _: bool = Depends(verify_api_key)):
     """
     Run both quantum and greedy solvers and compare results.
     """
@@ -139,7 +140,7 @@ async def compare_solvers(graph: CityGraph):
 
 
 @app.post("/generate-city", response_model=CityGraph)
-async def generate_city(request: GenerateCityRequest):
+async def generate_city(request: GenerateCityRequest, _: bool = Depends(verify_api_key)):
     """
     Generate a random city graph for testing.
 
@@ -157,7 +158,7 @@ async def generate_city(request: GenerateCityRequest):
 
 
 @app.get("/graphs")
-async def list_graphs():
+async def list_graphs(_: bool = Depends(verify_api_key)):
     """
     List available sample city graphs.
     """
@@ -175,7 +176,7 @@ async def list_graphs():
 
 
 @app.get("/graphs/{graph_name}")
-async def get_graph(graph_name: str):
+async def get_graph(graph_name: str, _: bool = Depends(verify_api_key)):
     """
     Get a specific sample city graph.
 
