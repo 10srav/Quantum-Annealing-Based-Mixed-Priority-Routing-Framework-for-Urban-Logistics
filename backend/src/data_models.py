@@ -3,7 +3,7 @@ Data models for the Quantum Priority Router.
 Defines Pydantic models for nodes, edges, graphs, and API request/responses.
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from enum import Enum
 from typing import Literal
 
@@ -32,13 +32,12 @@ class Node(BaseModel):
 
 class Edge(BaseModel):
     """An edge connecting two nodes with distance and traffic info."""
+    model_config = ConfigDict(populate_by_name=True)
+
     from_node: str = Field(..., alias="from", description="Source node ID")
     to_node: str = Field(..., alias="to", description="Target node ID")
     distance: float = Field(..., gt=0, description="Base distance in km")
     traffic: TrafficLevel = Field(..., description="Current traffic level")
-
-    class Config:
-        populate_by_name = True
 
 
 class TrafficMultipliers(BaseModel):
