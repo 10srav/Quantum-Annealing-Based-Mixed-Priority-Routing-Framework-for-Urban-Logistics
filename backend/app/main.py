@@ -3,8 +3,10 @@ FastAPI Application for Quantum Priority Router.
 """
 
 import asyncio
+import signal
 import time
 from functools import partial
+from typing import Set
 
 from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
@@ -24,6 +26,10 @@ from app.logging_config import configure_logging, get_logger, is_debug_enabled
 from app.middleware import RequestContextMiddleware, get_request_id
 
 logger = get_logger(__name__)
+
+# Track active requests for graceful shutdown
+active_requests: Set[asyncio.Task] = set()
+shutdown_event = asyncio.Event()
 from src.data_models import (
     CityGraph,
     SolverRequest,
@@ -114,16 +120,68 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             raise
 
 
+class RequestTrackingMiddleware(BaseHTTPMiddleware):
+    """
+    Middleware to track active requests for graceful shutdown.
+
+    Adds the current task to active_requests set on request start,
+    removes it on completion. This allows the shutdown handler to
+    wait for all in-flight requests to complete.
+    """
+
+    async def dispatch(self, request: Request, call_next):
+        task = asyncio.current_task()
+        if task is not None:
+            active_requests.add(task)
+        try:
+            response = await call_next(request)
+            return response
+        finally:
+            if task is not None:
+                active_requests.discard(task)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifespan handler."""
+    """
+    Application lifespan handler with graceful shutdown.
+
+    On startup: Configures logging.
+    On shutdown: Waits for in-flight requests to complete (up to shutdown_timeout).
+    """
     # Startup: Configure structured logging
     settings = get_settings()
     configure_logging(settings.log_level)
     logger.info("startup", service="quantum-priority-router", log_level=settings.log_level)
     yield
-    # Shutdown
-    logger.info("shutdown", service="quantum-priority-router")
+    # Shutdown - wait for in-flight requests
+    logger.info(
+        "shutdown_initiated",
+        service="quantum-priority-router",
+        active_requests=len(active_requests)
+    )
+    shutdown_event.set()
+
+    if active_requests:
+        logger.info(
+            "waiting_for_requests",
+            active_count=len(active_requests),
+            timeout_seconds=settings.shutdown_timeout
+        )
+        try:
+            await asyncio.wait_for(
+                asyncio.gather(*active_requests, return_exceptions=True),
+                timeout=settings.shutdown_timeout
+            )
+            logger.info("graceful_shutdown_complete", service="quantum-priority-router")
+        except asyncio.TimeoutError:
+            logger.warning(
+                "shutdown_timeout_reached",
+                timeout_seconds=settings.shutdown_timeout,
+                remaining_requests=len(active_requests)
+            )
+    else:
+        logger.info("shutdown_complete", service="quantum-priority-router", message="No active requests")
 
 
 app = FastAPI(
@@ -135,8 +193,8 @@ app = FastAPI(
 
 # Middleware configuration
 # Note: Middleware executes in REVERSE order of registration (last added = first to execute)
-# So we add in order: CORS, Logging, RequestContext
-# Execution order: RequestContext -> Logging -> CORS -> Route handler
+# So we add in order: CORS, Logging, RequestContext, RequestTracking
+# Execution order: RequestTracking -> RequestContext -> Logging -> CORS -> Route handler
 settings = get_settings()
 
 app.add_middleware(
@@ -150,8 +208,11 @@ app.add_middleware(
 # Logging middleware (runs after RequestContextMiddleware sets request_id)
 app.add_middleware(LoggingMiddleware)
 
-# Request context middleware (runs first - sets request_id for all other middleware)
+# Request context middleware (sets request_id for all other middleware)
 app.add_middleware(RequestContextMiddleware)
+
+# Request tracking middleware (runs first - tracks active requests for graceful shutdown)
+app.add_middleware(RequestTrackingMiddleware)
 
 # Rate limiting
 app.state.limiter = limiter

@@ -106,6 +106,7 @@ class Settings(BaseSettings):
 
     # Timeout Settings
     solver_timeout_seconds: int = 30  # Max time for solver endpoints
+    shutdown_timeout: int = 30  # Seconds to wait for in-flight requests during shutdown
 
     # Logging
     log_level: str = "INFO"  # DEBUG shows request/response bodies
