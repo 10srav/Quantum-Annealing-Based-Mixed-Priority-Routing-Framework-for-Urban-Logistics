@@ -351,5 +351,173 @@ class TestGraphNamePattern:
         assert not GRAPH_NAME_PATTERN.match(name)
 
 
+class TestCORSBehavior:
+    """Tests for CORS middleware behavior.
+
+    FastAPI's CORSMiddleware handles CORS by either including or omitting
+    Access-Control-Allow-Origin headers. When an origin is not in the allowed
+    list, the header is simply not included, causing the browser to block the
+    response. This is standard CORS behavior per the W3C spec.
+    """
+
+    def test_allowed_origin_gets_cors_headers(self):
+        """Request from allowed origin should receive CORS headers."""
+        # Default allowed origins include http://localhost:5173
+        response = client.get(
+            "/health",
+            headers={"Origin": "http://localhost:5173"}
+        )
+        assert response.status_code == 200
+        # Should have CORS header matching the request origin
+        assert response.headers.get("access-control-allow-origin") == "http://localhost:5173"
+
+    def test_disallowed_origin_no_cors_headers(self):
+        """Request from disallowed origin should NOT receive CORS headers."""
+        response = client.get(
+            "/health",
+            headers={"Origin": "http://evil-site.com"}
+        )
+        assert response.status_code == 200  # Request still succeeds
+        # But CORS header should be absent (browser will block)
+        assert "access-control-allow-origin" not in response.headers
+
+    def test_preflight_allowed_origin(self):
+        """CORS preflight from allowed origin should return CORS headers."""
+        response = client.options(
+            "/health",
+            headers={
+                "Origin": "http://localhost:5173",
+                "Access-Control-Request-Method": "GET",
+            }
+        )
+        # Preflight returns 200 with CORS headers
+        assert response.status_code == 200
+        assert response.headers.get("access-control-allow-origin") == "http://localhost:5173"
+
+    def test_preflight_disallowed_origin(self):
+        """CORS preflight from disallowed origin should NOT return CORS headers."""
+        response = client.options(
+            "/health",
+            headers={
+                "Origin": "http://evil-site.com",
+                "Access-Control-Request-Method": "GET",
+            }
+        )
+        # Preflight may return 200 or 400, but should NOT have CORS headers
+        assert "access-control-allow-origin" not in response.headers
+
+    def test_no_origin_header_no_cors_response(self):
+        """Request without Origin header should not get CORS headers."""
+        response = client.get("/health")
+        assert response.status_code == 200
+        # No Origin header = server-to-server call, no CORS needed
+        assert "access-control-allow-origin" not in response.headers
+
+    def test_alternate_allowed_origin(self):
+        """Both default allowed origins should work."""
+        # Test http://localhost:3000 (alternate dev port)
+        response = client.get(
+            "/health",
+            headers={"Origin": "http://localhost:3000"}
+        )
+        assert response.status_code == 200
+        assert response.headers.get("access-control-allow-origin") == "http://localhost:3000"
+
+
+class TestCORSConfiguration:
+    """Tests for CORS environment configuration."""
+
+    def test_cors_origins_parsing_comma_separated(self):
+        """CORS_ORIGINS env var should parse comma-separated values."""
+        from src.config import parse_cors_origins_value
+
+        result = parse_cors_origins_value("https://app.example.com,https://admin.example.com")
+        assert result == ["https://app.example.com", "https://admin.example.com"]
+
+    def test_cors_origins_parsing_json_array(self):
+        """CORS_ORIGINS env var should parse JSON array values."""
+        from src.config import parse_cors_origins_value
+
+        result = parse_cors_origins_value('["https://a.com", "https://b.com"]')
+        assert result == ["https://a.com", "https://b.com"]
+
+    def test_cors_origins_parsing_single_value(self):
+        """Single origin should be parsed correctly."""
+        from src.config import parse_cors_origins_value
+
+        result = parse_cors_origins_value("https://app.example.com")
+        assert result == ["https://app.example.com"]
+
+    def test_cors_origins_parsing_with_whitespace(self):
+        """Whitespace around origins should be trimmed."""
+        from src.config import parse_cors_origins_value
+
+        result = parse_cors_origins_value("  https://a.com  ,  https://b.com  ")
+        assert result == ["https://a.com", "https://b.com"]
+
+    def test_cors_origins_parsing_empty_values_filtered(self):
+        """Empty values from double commas should be filtered."""
+        from src.config import parse_cors_origins_value
+
+        result = parse_cors_origins_value("https://a.com,,https://b.com")
+        assert result == ["https://a.com", "https://b.com"]
+
+    def test_wildcard_rejected_in_production(self):
+        """Wildcard '*' should be rejected in production environment."""
+        from src.config import Settings
+
+        # Save current env
+        old_cors = os.environ.get("CORS_ORIGINS")
+        old_env = os.environ.get("ENVIRONMENT")
+
+        try:
+            os.environ["CORS_ORIGINS"] = "*"
+            os.environ["ENVIRONMENT"] = "production"
+            get_settings.cache_clear()
+
+            with pytest.raises(ValueError) as exc:
+                Settings()
+            assert "Wildcard" in str(exc.value)
+            assert "production" in str(exc.value)
+        finally:
+            # Restore env
+            if old_cors:
+                os.environ["CORS_ORIGINS"] = old_cors
+            else:
+                os.environ.pop("CORS_ORIGINS", None)
+            if old_env:
+                os.environ["ENVIRONMENT"] = old_env
+            else:
+                os.environ.pop("ENVIRONMENT", None)
+            get_settings.cache_clear()
+
+    def test_wildcard_allowed_in_development(self):
+        """Wildcard '*' should be allowed in development environment."""
+        from src.config import Settings
+
+        # Save current env
+        old_cors = os.environ.get("CORS_ORIGINS")
+        old_env = os.environ.get("ENVIRONMENT")
+
+        try:
+            os.environ["CORS_ORIGINS"] = "*"
+            os.environ["ENVIRONMENT"] = "development"
+            get_settings.cache_clear()
+
+            settings = Settings()
+            assert "*" in settings.cors_origins
+        finally:
+            # Restore env
+            if old_cors:
+                os.environ["CORS_ORIGINS"] = old_cors
+            else:
+                os.environ.pop("CORS_ORIGINS", None)
+            if old_env:
+                os.environ["ENVIRONMENT"] = old_env
+            else:
+                os.environ.pop("ENVIRONMENT", None)
+            get_settings.cache_clear()
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
