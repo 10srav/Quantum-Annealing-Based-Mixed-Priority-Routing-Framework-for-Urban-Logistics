@@ -35,10 +35,10 @@ from src.config import get_settings
 async def lifespan(app: FastAPI):
     """Application lifespan handler."""
     # Startup
-    print("🚀 Quantum Priority Router API starting...")
+    print("Quantum Priority Router API starting...")
     yield
     # Shutdown
-    print("👋 Shutting down...")
+    print("Shutting down...")
 
 
 app = FastAPI(
