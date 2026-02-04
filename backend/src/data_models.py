@@ -92,6 +92,30 @@ class QUBOParams(BaseModel):
     C: float = Field(1.0, description="Objective weight (distance)")
 
 
+class GenerateCityRequest(BaseModel):
+    """Validated request for city generation with bounds checking."""
+    n_nodes: int = Field(
+        default=10,
+        ge=2,
+        le=25,
+        description="Number of nodes to generate (2-25)"
+    )
+    priority_ratio: float = Field(
+        default=0.3,
+        ge=0.0,
+        le=1.0,
+        description="Ratio of priority nodes (0.0-1.0)"
+    )
+    traffic_profile: Literal["low", "medium", "high", "mixed"] = Field(
+        default="mixed",
+        description="Traffic intensity profile"
+    )
+    seed: int | None = Field(
+        default=None,
+        description="Random seed for reproducibility"
+    )
+
+
 class SolverRequest(BaseModel):
     """API request for route solving."""
     graph: CityGraph = Field(..., description="City graph to solve")
