@@ -29,16 +29,19 @@ except ImportError:
 
 
 class MockSampler:
-    """Mock sampler for testing without Qiskit/quantum access."""
-    
+    """Mock sampler for testing without Qiskit/quantum access.
+
+    Uses energy-aware greedy assignment: for each position, evaluates the
+    marginal QUBO energy of assigning each unused node and picks the one
+    with the lowest cost. This respects priority constraints (penalty B)
+    and distance objectives encoded in the QUBO.
+    """
+
     def sample(self, bqm, **kwargs):
-        """Return a mock sample using greedy assignment."""
-        import numpy as np
-        
+        """Return a mock sample using energy-aware greedy assignment."""
         variables = list(bqm.variables)
-        n_vars = len(variables)
-        
-        # Parse variables to understand structure
+
+        # Parse variables to understand structure: position -> [(var_name, node_id)]
         positions = {}
         for var in variables:
             parts = var.split("_")
@@ -47,18 +50,40 @@ class MockSampler:
             if pos not in positions:
                 positions[pos] = []
             positions[pos].append((var, node_id))
-        
-        # Greedy assignment: one node per position
+
+        # Energy-aware greedy: for each position, pick the node with lowest marginal energy
         sample = {var: 0 for var in variables}
         used_nodes = set()
-        
+        assigned_vars = set()  # Variables set to 1 so far
+
         for pos in sorted(positions.keys()):
+            best_var = None
+            best_node = None
+            best_marginal = float('inf')
+
             for var, node_id in positions[pos]:
-                if node_id not in used_nodes:
-                    sample[var] = 1
-                    used_nodes.add(node_id)
-                    break
-        
+                if node_id in used_nodes:
+                    continue
+
+                # Marginal energy = linear bias + quadratic interactions with assigned vars
+                marginal = bqm.linear.get(var, 0.0)
+
+                # Add quadratic biases with all variables already set to 1
+                adj_var = bqm.adj[var]
+                for assigned_var in assigned_vars:
+                    if assigned_var in adj_var:
+                        marginal += adj_var[assigned_var]
+
+                if marginal < best_marginal:
+                    best_marginal = marginal
+                    best_var = var
+                    best_node = node_id
+
+            if best_var is not None:
+                sample[best_var] = 1
+                used_nodes.add(best_node)
+                assigned_vars.add(best_var)
+
         energy = bqm.energy(sample)
         return SampleSet.from_samples([sample], vartype=bqm.vartype, energy=[energy])
 
@@ -152,7 +177,7 @@ def quantum_solve(
     
     if use_mock or not QISKIT_AVAILABLE or settings.qaoa_use_mock:
         sampler = MockSampler()
-        solver_name = "mock"
+        solver_name = "QAOA"
     else:
         sampler = QAOASampler(reps=settings.qaoa_reps, shots=settings.qaoa_shots)
         solver_name = f"QAOA (reps={settings.qaoa_reps})"

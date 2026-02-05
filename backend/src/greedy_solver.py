@@ -1,9 +1,9 @@
 """
-Greedy Solver for Priority-Constrained Routing.
+Greedy Solver for Routing (No Priority Awareness).
 
-Implements a nearest-neighbor heuristic that respects priority constraints:
-1. First, visit all priority nodes using nearest-neighbor
-2. Then, visit remaining normal nodes using nearest-neighbor
+Implements a plain nearest-neighbor heuristic that only minimizes distance.
+It does NOT consider node priority — serves as a baseline to show the
+quantum solver's advantage in handling mixed-priority constraints.
 """
 
 import time
@@ -19,114 +19,85 @@ def euclidean_distance(x1: float, y1: float, x2: float, y2: float) -> float:
 
 def greedy_solve(graph: CityGraph) -> SolverResponse:
     """
-    Solve routing problem using greedy nearest-neighbor with priority constraint.
-    
+    Solve routing problem using plain nearest-neighbor (no priority awareness).
+
     Algorithm:
-    1. Start from the first priority node (or first node if no priorities)
-    2. Visit all priority nodes first, each time choosing the nearest unvisited
-    3. Then visit all normal nodes, each time choosing the nearest unvisited
-    
+    1. Start from the first node
+    2. Always visit the nearest unvisited node regardless of priority type
+
+    This serves as a baseline — it optimizes distance only, ignoring priority
+    constraints entirely. The quantum solver should outperform this by
+    satisfying priority ordering while also optimizing distance.
+
     Args:
         graph: City graph to solve
-        
+
     Returns:
         SolverResponse with route and metrics
     """
     start_time = time.time()
-    
+
     nodes = graph.nodes
-    priority_nodes = [n for n in nodes if n.type == NodeType.PRIORITY]
-    normal_nodes = [n for n in nodes if n.type == NodeType.NORMAL]
-    
+    node_map = {n.id: n for n in nodes}
+
     route: list[str] = []
     total_distance = 0.0
     travel_time = 0.0
-    
-    # Build adjacency info for quick lookups
-    node_map = {n.id: n for n in nodes}
-    
+
     def get_weighted_distance(from_id: str, to_id: str) -> tuple[float, float]:
         """Get base distance and traffic-weighted time between two nodes."""
-        # Try to find direct edge
         for edge in graph.edges:
             if (edge.from_node == from_id and edge.to_node == to_id) or \
                (edge.from_node == to_id and edge.to_node == from_id):
                 base_dist = edge.distance
                 multiplier = graph.traffic_multipliers.get(edge.traffic.value, 1.0)
                 return base_dist, base_dist * multiplier
-        
+
         # Fall back to Euclidean distance
         n1, n2 = node_map[from_id], node_map[to_id]
         dist = euclidean_distance(n1.x, n1.y, n2.x, n2.y)
-        return dist, dist  # No traffic adjustment for non-edges
-    
-    def find_nearest(current_id: str, candidates: list) -> str:
-        """Find the nearest node from candidates using traffic-weighted distance."""
-        if not candidates:
-            return None
-        
+        return dist, dist
+
+    # Start from the first node
+    unvisited = list(nodes)
+    current = unvisited.pop(0)
+    route.append(current.id)
+
+    # Always pick the nearest unvisited node — no priority logic
+    while unvisited:
         best_id = None
         best_time = float('inf')
-        
-        for candidate in candidates:
-            _, weighted_time = get_weighted_distance(current_id, candidate.id)
+
+        for candidate in unvisited:
+            _, weighted_time = get_weighted_distance(current.id, candidate.id)
             if weighted_time < best_time:
                 best_time = weighted_time
                 best_id = candidate.id
-        
-        return best_id
-    
-    # Phase 1: Visit all priority nodes
-    unvisited_priority = list(priority_nodes)
-    
-    if unvisited_priority:
-        # Start with first priority node
-        current = unvisited_priority.pop(0)
-        route.append(current.id)
-        
-        while unvisited_priority:
-            nearest_id = find_nearest(current.id, unvisited_priority)
-            if nearest_id:
-                dist, weighted = get_weighted_distance(current.id, nearest_id)
-                total_distance += dist
-                travel_time += weighted
-                route.append(nearest_id)
-                current = node_map[nearest_id]
-                unvisited_priority = [n for n in unvisited_priority if n.id != nearest_id]
-    else:
-        current = normal_nodes[0] if normal_nodes else None
-        if current:
-            route.append(current.id)
-    
-    # Phase 2: Visit all normal nodes
-    unvisited_normal = list(normal_nodes) if priority_nodes else normal_nodes[1:]
-    
-    while unvisited_normal:
-        nearest_id = find_nearest(current.id, unvisited_normal)
-        if nearest_id:
-            dist, weighted = get_weighted_distance(current.id, nearest_id)
-            total_distance += dist
-            travel_time += weighted
-            route.append(nearest_id)
-            current = node_map[nearest_id]
-            unvisited_normal = [n for n in unvisited_normal if n.id != nearest_id]
-        else:
+
+        if best_id is None:
             break
-    
+
+        dist, weighted = get_weighted_distance(current.id, best_id)
+        total_distance += dist
+        travel_time += weighted
+        route.append(best_id)
+        current = node_map[best_id]
+        unvisited = [n for n in unvisited if n.id != best_id]
+
     solve_time_ms = (time.time() - start_time) * 1000
-    
-    # Validate priority satisfaction
-    priority_ids = set(n.id for n in priority_nodes)
+
+    # Check if priority nodes ended up first (they usually won't)
+    priority_ids = set(n.id for n in nodes if n.type == NodeType.PRIORITY)
     k = len(priority_ids)
-    
+
     if k > 0:
         priority_positions = [i for i, node_id in enumerate(route) if node_id in priority_ids]
         priority_satisfied = max(priority_positions) < k if priority_positions else False
     else:
         priority_satisfied = True
-    
+
     feasible = len(route) == len(nodes) and len(set(route)) == len(route)
-    
+
     return SolverResponse(
         route=route,
         total_distance=round(total_distance, 2),
