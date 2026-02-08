@@ -62,10 +62,16 @@ export const MetricsChart: React.FC<MetricsChartProps> = ({
             greedyResult?.solve_time_ms || 0,
         ].filter(v => v > 0);
 
+        const efficiencyRatios = [
+            quantumResult?.distance_efficiency_ratio || 0,
+            greedyResult?.distance_efficiency_ratio || 0,
+        ].filter(v => v > 0);
+
         return {
             maxDistance: Math.max(...distances) * 1.1,
             maxTime: Math.max(...times) * 1.1,
             maxSolveTime: Math.max(...solveTimes) * 1.1,
+            maxEfficiency: efficiencyRatios.length > 0 ? Math.max(...efficiencyRatios) * 1.1 : 2,
         };
     }, [quantumResult, greedyResult]);
 
@@ -124,6 +130,28 @@ export const MetricsChart: React.FC<MetricsChartProps> = ({
             </div>
 
             <div className="chart-section">
+                <h4>Efficiency Ratio (lower = better)</h4>
+                {quantumResult?.distance_efficiency_ratio != null && (
+                    <Bar
+                        label="Quantum"
+                        value={quantumResult.distance_efficiency_ratio}
+                        maxValue={chartData.maxEfficiency}
+                        color="#8b5cf6"
+                        unit="x"
+                    />
+                )}
+                {greedyResult?.distance_efficiency_ratio != null && (
+                    <Bar
+                        label="Greedy"
+                        value={greedyResult.distance_efficiency_ratio}
+                        maxValue={chartData.maxEfficiency}
+                        color="#06b6d4"
+                        unit="x"
+                    />
+                )}
+            </div>
+
+            <div className="chart-section">
                 <h4>Solve Time (ms)</h4>
                 {quantumResult && (
                     <Bar
@@ -163,6 +191,15 @@ export const MetricsChart: React.FC<MetricsChartProps> = ({
                         </span>
                         <span className="badge-label">Time Saved</span>
                     </div>
+                    {comparison.traffic_time_comparison && (
+                        <div className="comparison-badge">
+                            <span className="badge-icon">🚦</span>
+                            <span className="badge-value">
+                                {comparison.traffic_time_comparison.quantum?.toFixed(2) ?? '-'}x / {comparison.traffic_time_comparison.greedy?.toFixed(2) ?? '-'}x
+                            </span>
+                            <span className="badge-label">Traffic Impact (Q/G)</span>
+                        </div>
+                    )}
                 </div>
             )}
         </div>

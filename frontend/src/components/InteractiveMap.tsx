@@ -3,7 +3,7 @@
  * Uses OSRM for real road routing
  */
 
-import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -12,6 +12,7 @@ import 'leaflet-routing-machine/dist/leaflet-routing-machine.css';
 import type { CityGraph, Node, Edge } from '../lib/types';
 
 // Fix for default marker icons
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({
     iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
@@ -20,9 +21,12 @@ L.Icon.Default.mergeOptions({
 });
 
 // Custom marker icons
-const createIcon = (type: 'priority' | 'normal', label: string, isInRoute: boolean = false) => {
-    const color = type === 'priority' ? '#ef4444' : '#3b82f6';
-    const size = isInRoute ? 40 : 32;
+const createIcon = (type: 'priority' | 'normal' | 'depot', label: string, isInRoute: boolean = false) => {
+    const colorMap: Record<string, string> = { priority: '#ef4444', normal: '#3b82f6', depot: '#f59e0b' };
+    const color = colorMap[type] || '#3b82f6';
+    const isDepot = type === 'depot';
+    const size = isDepot ? 44 : isInRoute ? 40 : 32;
+    const borderRadius = isDepot ? '6px' : '50%';
     return new L.DivIcon({
         className: 'custom-div-icon',
         html: `
@@ -30,17 +34,17 @@ const createIcon = (type: 'priority' | 'normal', label: string, isInRoute: boole
                 width: ${size}px;
                 height: ${size}px;
                 background: ${color};
-                border-radius: 50%;
+                border-radius: ${borderRadius};
                 border: 3px solid ${isInRoute ? '#10b981' : 'white'};
                 display: flex;
                 align-items: center;
                 justify-content: center;
                 color: white;
                 font-weight: bold;
-                font-size: ${isInRoute ? '14px' : '12px'};
+                font-size: ${isDepot ? '16px' : isInRoute ? '14px' : '12px'};
                 box-shadow: 0 2px 8px rgba(0,0,0,0.3);
                 cursor: pointer;
-            ">${label}</div>
+            ">${isDepot ? 'D' : label}</div>
         `,
         iconSize: [size, size],
         iconAnchor: [size / 2, size / 2],
@@ -95,11 +99,9 @@ const OSRMRoute: React.FC<{
     waypoints: [number, number][];
     color?: string;
 }> = ({ waypoints, color = '#10b981' }) => {
-    const map = useMap();
-    const routingControlRef = useRef<L.Routing.Control | null>(null);
+    useMap();
     const [routeCoords, setRouteCoords] = useState<[number, number][]>([]);
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         if (waypoints.length < 2) {
@@ -108,9 +110,9 @@ const OSRMRoute: React.FC<{
         }
 
         // Use OSRM API directly for cleaner integration
+        let cancelled = false;
         const fetchRoute = async () => {
             setLoading(true);
-            setError(null);
 
             try {
                 // Build OSRM URL - coordinates are lng,lat format
@@ -120,6 +122,8 @@ const OSRMRoute: React.FC<{
                 const response = await fetch(url);
                 const data = await response.json();
 
+                if (cancelled) return;
+
                 if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
                     // OSRM returns coordinates as [lng, lat], we need [lat, lng] for Leaflet
                     const coordinates = data.routes[0].geometry.coordinates.map(
@@ -127,21 +131,22 @@ const OSRMRoute: React.FC<{
                     );
                     setRouteCoords(coordinates);
                 } else {
-                    setError('No route found');
                     // Fallback to straight lines
                     setRouteCoords(waypoints);
                 }
             } catch (err) {
+                if (cancelled) return;
                 console.error('OSRM routing error:', err);
-                setError('Routing service unavailable');
                 // Fallback to straight lines
                 setRouteCoords(waypoints);
             } finally {
-                setLoading(false);
+                if (!cancelled) setLoading(false);
             }
         };
 
         fetchRoute();
+
+        return () => { cancelled = true; };
     }, [waypoints]);
 
     if (routeCoords.length < 2) return null;
@@ -191,18 +196,20 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
 }) => {
     const [nodes, setNodes] = useState<Node[]>(graph?.nodes || []);
     const [edges, setEdges] = useState<Edge[]>(graph?.edges || []);
-    const [selectedNodeType, setSelectedNodeType] = useState<'priority' | 'normal'>('priority');
+    const [selectedNodeType, setSelectedNodeType] = useState<'priority' | 'normal' | 'depot'>('priority');
     const [editMode, setEditMode] = useState<'add' | 'select' | 'delete'>('add');
     const [showRoadRoutes, setShowRoadRoutes] = useState(true);
     const cityCenter = CITY_CENTERS.hyderabad;
 
-    // Sync with external graph changes
+    // Sync with external graph changes (intentional prop-to-state sync for editable local copy)
+    /* eslint-disable react-hooks/set-state-in-effect */
     useEffect(() => {
         if (graph) {
             setNodes(graph.nodes);
             setEdges(graph.edges);
         }
     }, [graph]);
+    /* eslint-enable react-hooks/set-state-in-effect */
 
     // Convert lat/lng to x/y coordinates
     const latLngToXY = useCallback((lat: number, lng: number): { x: number; y: number } => {
@@ -225,18 +232,25 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     };
 
     // Add new node on map click
+    const hasDepot = nodes.some(n => n.type === 'depot');
+
     const handleMapClick = useCallback((latlng: L.LatLng) => {
         if (editMode !== 'add') return;
 
+        // Prevent adding a second depot
+        const depotExists = nodes.some(n => n.type === 'depot');
+        if (selectedNodeType === 'depot' && depotExists) return;
+
         const { x, y } = latLngToXY(latlng.lat, latlng.lng);
-        const newId = `N${nodes.length + 1}`;
+        const isDepot = selectedNodeType === 'depot';
+        const newId = isDepot ? 'D0' : `N${nodes.length + 1}`;
 
         const newNode: Node = {
             id: newId,
             x,
             y,
             type: selectedNodeType,
-            label: newId,
+            label: isDepot ? 'Depot' : newId,
         };
 
         // Auto-connect to nearby nodes (within distance of 3)
@@ -274,9 +288,15 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     // Toggle node type
     const handleNodeClick = useCallback((nodeId: string) => {
         if (editMode === 'select') {
+            const depotExists = nodes.some(n => n.type === 'depot');
+            const cycleType = (current: string): 'priority' | 'normal' | 'depot' => {
+                if (current === 'priority') return 'normal';
+                if (current === 'normal' && !depotExists) return 'depot';
+                return 'priority';
+            };
             const updatedNodes = nodes.map(n =>
                 n.id === nodeId
-                    ? { ...n, type: n.type === 'priority' ? 'normal' : 'priority' } as Node
+                    ? { ...n, type: cycleType(n.type) } as Node
                     : n
             );
             setNodes(updatedNodes);
@@ -395,6 +415,14 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
                             >
                                 🔵 Normal
                             </button>
+                            <button
+                                className={`toolbar-btn type-btn depot ${selectedNodeType === 'depot' ? 'active' : ''}`}
+                                onClick={() => setSelectedNodeType('depot')}
+                                disabled={hasDepot}
+                                title={hasDepot ? 'Only one depot allowed' : 'Add depot/warehouse starting point'}
+                            >
+                                🟠 Depot
+                            </button>
                         </div>
                     )}
 
@@ -418,6 +446,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
                 <span>📍 {nodes.length} nodes</span>
                 <span>🔴 {nodes.filter(n => n.type === 'priority').length} priority</span>
                 <span>🔵 {nodes.filter(n => n.type === 'normal').length} normal</span>
+                {hasDepot && <span>🟠 1 depot</span>}
                 <span>🔗 {edges.length} connections</span>
                 {showRoadRoutes && routeWaypoints.length > 1 && (
                     <span>🛣️ Real roads</span>
@@ -473,11 +502,13 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
                     const isInRoute = routeIdx >= 0;
                     const label = isInRoute ? `${routeIdx + 1}` : `${idx + 1}`;
 
+                    const typeLabel = node.type === 'depot' ? '🟠 Depot' : node.type === 'priority' ? '🔴 Priority' : '🔵 Normal';
+
                     return (
                         <Marker
                             key={node.id}
                             position={pos}
-                            icon={createIcon(node.type as 'priority' | 'normal', label, isInRoute)}
+                            icon={createIcon(node.type as 'priority' | 'normal' | 'depot', label, isInRoute)}
                             eventHandlers={{
                                 click: () => handleNodeClick(node.id),
                             }}
@@ -485,7 +516,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
                             <Popup>
                                 <div style={{ textAlign: 'center' }}>
                                     <strong>{node.id}</strong><br />
-                                    Type: {node.type === 'priority' ? '🔴 Priority' : '🔵 Normal'}<br />
+                                    Type: {typeLabel}<br />
                                     Position: ({node.x.toFixed(1)}, {node.y.toFixed(1)})
                                     {isInRoute && <><br />Route #: {routeIdx + 1}</>}
                                 </div>
@@ -498,6 +529,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
             <div className="map-legend">
                 <div className="legend-item"><span className="legend-dot priority"></span> Priority (visit first)</div>
                 <div className="legend-item"><span className="legend-dot normal"></span> Normal</div>
+                <div className="legend-item"><span className="legend-dot" style={{background: '#f59e0b'}}></span> Depot (start)</div>
                 <div className="legend-item"><span className="legend-line low"></span> Low traffic</div>
                 <div className="legend-item"><span className="legend-line medium"></span> Medium traffic</div>
                 <div className="legend-item"><span className="legend-line high"></span> High traffic</div>

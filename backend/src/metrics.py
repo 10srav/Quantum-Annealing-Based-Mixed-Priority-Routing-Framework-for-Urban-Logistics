@@ -36,11 +36,20 @@ def compare_solutions(
     """
     Compare greedy and quantum solutions.
     """
+    # Build traffic time comparison
+    traffic_time_comparison = None
+    if quantum.traffic_time_ratio is not None or greedy.traffic_time_ratio is not None:
+        traffic_time_comparison = {
+            "quantum": quantum.traffic_time_ratio,
+            "greedy": greedy.traffic_time_ratio,
+        }
+
     return ComparisonResponse(
         greedy=greedy,
         quantum=quantum,
         distance_reduction_pct=round(compute_distance_reduction(greedy, quantum), 2),
-        time_reduction_pct=round(compute_time_reduction(greedy, quantum), 2)
+        time_reduction_pct=round(compute_time_reduction(greedy, quantum), 2),
+        traffic_time_comparison=traffic_time_comparison,
     )
 
 

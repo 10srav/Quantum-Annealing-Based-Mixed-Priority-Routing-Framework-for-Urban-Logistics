@@ -3,7 +3,7 @@
  */
 
 // Node Types
-export type NodeType = 'priority' | 'normal';
+export type NodeType = 'priority' | 'normal' | 'depot';
 export type TrafficLevel = 'low' | 'medium' | 'high';
 export type SolverType = 'quantum' | 'greedy';
 
@@ -65,6 +65,10 @@ export interface SolverResponse {
   solve_time_ms: number;
   energy: number | null;
   solver_used: string;
+  distance_efficiency_ratio: number | null;
+  priority_violation_count: number;
+  traffic_time_ratio: number | null;
+  depot_id: string | null;
 }
 
 export interface ComparisonResponse {
@@ -72,6 +76,7 @@ export interface ComparisonResponse {
   greedy: SolverResponse;
   distance_reduction_pct: number;
   time_reduction_pct: number;
+  traffic_time_comparison: { quantum: number | null; greedy: number | null } | null;
 }
 
 // Graph Info

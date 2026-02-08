@@ -83,6 +83,37 @@ export const MetricsTable: React.FC<MetricsTableProps> = ({
                         )}
                     </tr>
                     <tr>
+                        <td>Efficiency Ratio</td>
+                        {quantumResult && (
+                            <td>{quantumResult.distance_efficiency_ratio?.toFixed(2) ?? '-'}x</td>
+                        )}
+                        {greedyResult && (
+                            <td>{greedyResult.distance_efficiency_ratio?.toFixed(2) ?? '-'}x</td>
+                        )}
+                    </tr>
+                    <tr>
+                        <td>Priority Violations</td>
+                        {quantumResult && (
+                            <td className={quantumResult.priority_violation_count === 0 ? 'status-ok' : 'status-fail'}>
+                                {quantumResult.priority_violation_count}
+                            </td>
+                        )}
+                        {greedyResult && (
+                            <td className={greedyResult.priority_violation_count === 0 ? 'status-ok' : 'status-fail'}>
+                                {greedyResult.priority_violation_count}
+                            </td>
+                        )}
+                    </tr>
+                    <tr>
+                        <td>Traffic Impact</td>
+                        {quantumResult && (
+                            <td>{quantumResult.traffic_time_ratio?.toFixed(2) ?? '-'}x</td>
+                        )}
+                        {greedyResult && (
+                            <td>{greedyResult.traffic_time_ratio?.toFixed(2) ?? '-'}x</td>
+                        )}
+                    </tr>
+                    <tr>
                         <td>Solve Time (ms)</td>
                         {quantumResult && <td>{quantumResult.solve_time_ms.toFixed(1)}</td>}
                         {greedyResult && <td>{greedyResult.solve_time_ms.toFixed(2)}</td>}

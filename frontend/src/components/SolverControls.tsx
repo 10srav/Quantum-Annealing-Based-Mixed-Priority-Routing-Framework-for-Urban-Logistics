@@ -9,7 +9,7 @@ import { DEFAULT_QUBO_PARAMS } from '../lib/config';
 interface SolverControlsProps {
     onSolve: (solver: SolverType, params?: QUBOParams) => void;
     onCompare: () => void;
-    onGenerate: (nodes: number, priorityRatio: number, traffic: string) => void;
+    onGenerate: (nodes: number, priorityRatio: number, traffic: string, includeDepot: boolean) => void;
     loading: boolean;
     graphLoaded: boolean;
 }
@@ -24,6 +24,7 @@ export const SolverControls: React.FC<SolverControlsProps> = ({
     const [numNodes, setNumNodes] = useState(10);
     const [priorityRatio, setPriorityRatio] = useState(0.3);
     const [trafficProfile, setTrafficProfile] = useState('mixed');
+    const [includeDepot, setIncludeDepot] = useState(false);
     const [showAdvanced, setShowAdvanced] = useState(false);
     const [params, setParams] = useState<QUBOParams>(DEFAULT_QUBO_PARAMS);
 
@@ -69,9 +70,19 @@ export const SolverControls: React.FC<SolverControlsProps> = ({
                         </select>
                     </label>
                 </div>
+                <div className="control-group">
+                    <label className="checkbox-label">
+                        <input
+                            type="checkbox"
+                            checked={includeDepot}
+                            onChange={(e) => setIncludeDepot(e.target.checked)}
+                        />
+                        Include Depot (warehouse starting point)
+                    </label>
+                </div>
                 <button
                     className="btn btn-secondary"
-                    onClick={() => onGenerate(numNodes, priorityRatio, trafficProfile)}
+                    onClick={() => onGenerate(numNodes, priorityRatio, trafficProfile, includeDepot)}
                     disabled={loading}
                 >
                     🎲 Generate City

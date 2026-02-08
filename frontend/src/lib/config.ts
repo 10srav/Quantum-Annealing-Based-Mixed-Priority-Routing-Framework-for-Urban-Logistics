@@ -29,4 +29,5 @@ export const TRAFFIC_COLORS = {
 export const NODE_COLORS = {
     priority: '#ef4444',  // red
     normal: '#3b82f6',    // blue
+    depot: '#f59e0b',     // amber
 };

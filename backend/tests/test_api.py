@@ -7,30 +7,34 @@ from fastapi.testclient import TestClient
 from app.main import app
 
 
+# API key "test" matches the SHA-256 hash in .env and conftest.py
+API_HEADERS = {"X-API-Key": "test"}
+
 client = TestClient(app)
 
 
 class TestHealthEndpoint:
     """Tests for health check endpoint."""
-    
+
     def test_health_returns_200(self):
         """Health endpoint should return 200."""
         response = client.get("/health")
         assert response.status_code == 200
-    
+
     def test_health_response_structure(self):
         """Health response should have expected structure."""
         response = client.get("/health")
         data = response.json()
-        
+
         assert "status" in data
         assert "service" in data
-        assert "qaoa_info" in data
+        assert "timestamp" in data
+        assert "dependencies" in data
 
 
 class TestSolveEndpoint:
     """Tests for solve endpoint."""
-    
+
     @pytest.fixture
     def sample_request(self):
         """Sample solve request."""
@@ -49,42 +53,50 @@ class TestSolveEndpoint:
             },
             "solver": "greedy"
         }
-    
+
     def test_solve_greedy_returns_200(self, sample_request):
         """Greedy solve should return 200."""
-        response = client.post("/solve", json=sample_request)
+        response = client.post("/solve", json=sample_request, headers=API_HEADERS)
         assert response.status_code == 200
-    
+
     def test_solve_returns_route(self, sample_request):
         """Solve should return a route."""
-        response = client.post("/solve", json=sample_request)
+        response = client.post("/solve", json=sample_request, headers=API_HEADERS)
         data = response.json()
-        
+
         assert "route" in data
         assert len(data["route"]) == 3
         assert set(data["route"]) == {"N1", "N2", "N3"}
-    
+
     def test_solve_returns_metrics(self, sample_request):
         """Solve should return metrics."""
-        response = client.post("/solve", json=sample_request)
+        response = client.post("/solve", json=sample_request, headers=API_HEADERS)
         data = response.json()
-        
+
         assert "total_distance" in data
         assert "travel_time" in data
         assert "feasible" in data
         assert "priority_satisfied" in data
         assert "solve_time_ms" in data
-    
+        assert "distance_efficiency_ratio" in data
+        assert "priority_violation_count" in data
+        assert "traffic_time_ratio" in data
+
     def test_solve_quantum_mock(self, sample_request):
         """Quantum solve should work in mock mode."""
         sample_request["solver"] = "quantum"
-        response = client.post("/solve", json=sample_request)
+        response = client.post("/solve", json=sample_request, headers=API_HEADERS)
         assert response.status_code == 200
+
+    def test_solve_requires_auth(self, sample_request):
+        """Solve without API key should return 400."""
+        response = client.post("/solve", json=sample_request)
+        assert response.status_code == 400
 
 
 class TestCompareEndpoint:
     """Tests for compare endpoint."""
-    
+
     @pytest.fixture
     def sample_graph(self):
         """Sample graph for comparison."""
@@ -98,43 +110,56 @@ class TestCompareEndpoint:
             ],
             "traffic_multipliers": {"low": 1.0, "medium": 1.5, "high": 2.0}
         }
-    
+
     def test_compare_returns_200(self, sample_graph):
         """Compare should return 200."""
-        response = client.post("/compare", json=sample_graph)
+        response = client.post("/compare", json=sample_graph, headers=API_HEADERS)
         assert response.status_code == 200
-    
+
     def test_compare_returns_both_results(self, sample_graph):
         """Compare should return both quantum and greedy results."""
-        response = client.post("/compare", json=sample_graph)
+        response = client.post("/compare", json=sample_graph, headers=API_HEADERS)
         data = response.json()
-        
+
         assert "quantum" in data
         assert "greedy" in data
         assert "distance_reduction_pct" in data
         assert "time_reduction_pct" in data
+        assert "traffic_time_comparison" in data
 
 
 class TestGenerateCityEndpoint:
     """Tests for city generation endpoint."""
-    
+
     def test_generate_returns_200(self):
         """Generate should return 200."""
-        response = client.post("/generate-city?n_nodes=5")
+        response = client.post(
+            "/generate-city",
+            json={"n_nodes": 5},
+            headers=API_HEADERS,
+        )
         assert response.status_code == 200
-    
+
     def test_generate_returns_correct_node_count(self):
         """Generate should return requested number of nodes."""
-        response = client.post("/generate-city?n_nodes=8")
+        response = client.post(
+            "/generate-city",
+            json={"n_nodes": 8},
+            headers=API_HEADERS,
+        )
         data = response.json()
-        
+
         assert len(data["nodes"]) == 8
-    
+
     def test_generate_includes_edges(self):
         """Generate should include edges."""
-        response = client.post("/generate-city?n_nodes=5")
+        response = client.post(
+            "/generate-city",
+            json={"n_nodes": 5},
+            headers=API_HEADERS,
+        )
         data = response.json()
-        
+
         assert "edges" in data
         assert len(data["edges"]) > 0
 

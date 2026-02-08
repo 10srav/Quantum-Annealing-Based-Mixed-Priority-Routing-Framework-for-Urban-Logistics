@@ -4,7 +4,7 @@ Unit tests for QUBO Builder.
 
 import pytest
 from src.data_models import Node, Edge, CityGraph, NodeType, TrafficLevel, QUBOParams
-from src.qubo_builder import build_qubo, decode_route, validate_route, compute_route_metrics
+from src.qubo_builder import build_qubo, decode_route, validate_route, compute_route_metrics, count_priority_violations
 
 
 @pytest.fixture
@@ -53,12 +53,14 @@ class TestBuildQubo:
         assert bqm is not None
     
     def test_priority_constraint_penalties(self, simple_graph):
-        """Priority nodes in wrong positions should have high penalties."""
+        """Priority nodes in wrong positions should have higher bias (penalty) than allowed positions."""
         bqm = build_qubo(simple_graph)
-        # Priority node (N1) in position 2 (normal position) should have penalty
-        assert bqm.get_linear("x_N1_2") > 0
-        # Normal node (N3) in position 0 (priority position) should have penalty
-        assert bqm.get_linear("x_N3_0") > 0
+        # Priority node (N1) in forbidden position 2 should have higher bias
+        # than in allowed position 0 (penalty B is added for forbidden positions)
+        assert bqm.get_linear("x_N1_2") > bqm.get_linear("x_N1_0")
+        # Normal node (N3) in forbidden position 0 (priority zone) should have
+        # higher bias than in allowed position 2
+        assert bqm.get_linear("x_N3_0") > bqm.get_linear("x_N3_2")
 
 
 class TestDecodeRoute:
@@ -131,6 +133,106 @@ class TestComputeRouteMetrics:
         # N1 -> N3: distance=2.0, traffic=medium (1.5x)
         assert total_distance == pytest.approx(2.0)
         assert travel_time == pytest.approx(3.0)  # 2.0 * 1.5
+
+
+@pytest.fixture
+def depot_graph():
+    """Create a graph with a depot + 3 delivery nodes."""
+    nodes = [
+        Node(id="D0", x=5, y=5, type=NodeType.DEPOT),
+        Node(id="N1", x=0, y=0, type=NodeType.PRIORITY),
+        Node(id="N2", x=1, y=1, type=NodeType.NORMAL),
+        Node(id="N3", x=2, y=0, type=NodeType.NORMAL),
+    ]
+    edges = [
+        Edge(from_node="D0", to_node="N1", distance=7.07, traffic=TrafficLevel.LOW),
+        Edge(from_node="D0", to_node="N2", distance=5.66, traffic=TrafficLevel.LOW),
+        Edge(from_node="D0", to_node="N3", distance=5.83, traffic=TrafficLevel.LOW),
+        Edge(from_node="N1", to_node="N2", distance=1.41, traffic=TrafficLevel.LOW),
+        Edge(from_node="N1", to_node="N3", distance=2.0, traffic=TrafficLevel.MEDIUM),
+        Edge(from_node="N2", to_node="N3", distance=1.41, traffic=TrafficLevel.LOW),
+    ]
+    return CityGraph(
+        nodes=nodes,
+        edges=edges,
+        traffic_multipliers={"low": 1.0, "medium": 1.5, "high": 2.0}
+    )
+
+
+class TestDepotQUBO:
+    """Tests for depot handling in QUBO builder."""
+
+    def test_qubo_excludes_depot_variables(self, depot_graph):
+        """QUBO should have (n-1)^2 variables when depot is present."""
+        bqm = build_qubo(depot_graph)
+        delivery_count = len(depot_graph.delivery_nodes)
+        assert delivery_count == 3
+        assert len(bqm.variables) == delivery_count * delivery_count  # 9, not 16
+
+    def test_qubo_no_depot_variable(self, depot_graph):
+        """QUBO variables should not include depot node."""
+        bqm = build_qubo(depot_graph)
+        for var in bqm.variables:
+            assert not var.startswith("x_D0_")
+
+    def test_decode_route_prepends_depot(self):
+        """decode_route should prepend depot_id when given."""
+        sample = {
+            "x_N1_0": 1, "x_N1_1": 0, "x_N1_2": 0,
+            "x_N2_0": 0, "x_N2_1": 1, "x_N2_2": 0,
+            "x_N3_0": 0, "x_N3_1": 0, "x_N3_2": 1,
+        }
+        route = decode_route(sample, ["N1", "N2", "N3"], depot_id="D0")
+        assert route[0] == "D0"
+        assert route == ["D0", "N1", "N2", "N3"]
+
+    def test_decode_route_no_depot(self):
+        """decode_route without depot_id should behave as before."""
+        sample = {
+            "x_N1_0": 1, "x_N1_1": 0,
+            "x_N2_0": 0, "x_N2_1": 1,
+        }
+        route = decode_route(sample, ["N1", "N2"])
+        assert route == ["N1", "N2"]
+
+    def test_validate_route_with_depot(self, depot_graph):
+        """Validation should pass when depot is at position 0 and priorities are first among delivery nodes."""
+        route = ["D0", "N1", "N2", "N3"]
+        feasible, priority_satisfied = validate_route(route, depot_graph)
+        assert feasible is True
+        assert priority_satisfied is True
+
+    def test_validate_route_with_depot_priority_violated(self, depot_graph):
+        """Validation should detect priority violation even with depot."""
+        route = ["D0", "N2", "N1", "N3"]  # Normal N2 before priority N1
+        feasible, priority_satisfied = validate_route(route, depot_graph)
+        assert feasible is True
+        assert priority_satisfied is False
+
+    def test_count_violations_skips_depot(self, depot_graph):
+        """count_priority_violations should skip depot at position 0."""
+        # Priority N1 is at delivery position 0 (route position 1) → 0 violations
+        route = ["D0", "N1", "N2", "N3"]
+        assert count_priority_violations(route, depot_graph) == 0
+
+    def test_count_violations_depot_with_violation(self, depot_graph):
+        """count_priority_violations detects priority not in first k delivery positions."""
+        # Priority N1 is at delivery position 2 (route position 3) → 1 violation
+        route = ["D0", "N2", "N3", "N1"]
+        assert count_priority_violations(route, depot_graph) == 1
+
+    def test_single_depot_validator(self):
+        """CityGraph should reject multiple depots."""
+        nodes = [
+            Node(id="D0", x=5, y=5, type=NodeType.DEPOT),
+            Node(id="D1", x=3, y=3, type=NodeType.DEPOT),
+            Node(id="N1", x=0, y=0, type=NodeType.PRIORITY),
+        ]
+        edges = [
+            Edge(from_node="D0", to_node="N1", distance=1.0, traffic=TrafficLevel.LOW),
+        ]
+        with pytest.raises(ValueError, match="At most 1 depot"):
+            CityGraph(nodes=nodes, edges=edges)
 
 
 if __name__ == "__main__":

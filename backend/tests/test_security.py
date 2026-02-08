@@ -11,32 +11,16 @@ import os
 import re
 import pytest
 from fastapi.testclient import TestClient
-
-# Import auth module first to compute hash
-from src.auth import hash_api_key
-
-# Set test API key and compute its hash
-TEST_API_KEY = "test-api-key-12345"
-TEST_API_KEY_HASH = hash_api_key(TEST_API_KEY)
-
-# Set environment variable for the API key hash
-os.environ["API_KEY_HASH"] = TEST_API_KEY_HASH
-
-# Clear the settings cache to ensure our new env var is picked up
-# This is necessary when running tests in a suite with other test modules
-from src.config import get_settings
-get_settings.cache_clear()
-
-# Now import app after setting up auth
 from app.main import app
+from src.config import get_settings
 from src.security import validate_graph_path, DATA_DIR, GRAPH_NAME_PATTERN
 
 
 # Create test client with authentication header by default
 client = TestClient(app, raise_server_exceptions=False)
 
-# Default headers for authenticated requests
-AUTH_HEADERS = {"X-API-Key": TEST_API_KEY}
+# Use the "test" API key (hash is configured via conftest.py and .env)
+AUTH_HEADERS = {"X-API-Key": "test"}
 
 
 # Helper for detecting sensitive information in responses

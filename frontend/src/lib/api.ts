@@ -79,12 +79,14 @@ export async function generateCity(
     nNodes: number = 10,
     priorityRatio: number = 0.3,
     trafficProfile: string = 'mixed',
-    seed?: number
+    seed?: number,
+    includeDepot: boolean = false,
 ): Promise<CityGraph> {
     const body: Record<string, unknown> = {
         n_nodes: nNodes,
         priority_ratio: priorityRatio,
         traffic_profile: trafficProfile,
+        include_depot: includeDepot,
     };
 
     if (seed !== undefined) {

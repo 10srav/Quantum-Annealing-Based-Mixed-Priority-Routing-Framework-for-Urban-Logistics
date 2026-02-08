@@ -110,12 +110,13 @@ export function useCityGraph() {
     const generate = useCallback(async (
         nNodes: number = 10,
         priorityRatio: number = 0.3,
-        trafficProfile: string = 'mixed'
+        trafficProfile: string = 'mixed',
+        includeDepot: boolean = false,
     ): Promise<CityGraph | null> => {
         setState(prev => ({ ...prev, loading: true, error: null }));
 
         try {
-            const graph = await generateCity(nNodes, priorityRatio, trafficProfile);
+            const graph = await generateCity(nNodes, priorityRatio, trafficProfile, undefined, includeDepot);
             setState({ graph, loading: false, error: null });
             return graph;
         } catch (err) {
@@ -145,7 +146,7 @@ export function useHealth() {
         try {
             const result = await checkHealth();
             setHealth(result);
-        } catch (err) {
+        } catch {
             setHealth(null);
         }
         setLoading(false);

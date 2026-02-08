@@ -119,5 +119,47 @@ class TestGreedyWithAllNormal:
         assert result.priority_satisfied is True  # No priorities to satisfy
 
 
+class TestGreedyWithDepot:
+    """Tests for greedy solver with depot node."""
+
+    @pytest.fixture
+    def depot_graph(self):
+        nodes = [
+            Node(id="D0", x=5, y=5, type=NodeType.DEPOT),
+            Node(id="N1", x=0, y=0, type=NodeType.PRIORITY),
+            Node(id="N2", x=1, y=0, type=NodeType.NORMAL),
+            Node(id="N3", x=2, y=0, type=NodeType.NORMAL),
+        ]
+        edges = [
+            Edge(from_node="D0", to_node="N1", distance=7.07, traffic=TrafficLevel.LOW),
+            Edge(from_node="D0", to_node="N2", distance=5.10, traffic=TrafficLevel.LOW),
+            Edge(from_node="D0", to_node="N3", distance=5.83, traffic=TrafficLevel.LOW),
+            Edge(from_node="N1", to_node="N2", distance=1.0, traffic=TrafficLevel.LOW),
+            Edge(from_node="N2", to_node="N3", distance=1.0, traffic=TrafficLevel.LOW),
+        ]
+        return CityGraph(nodes=nodes, edges=edges)
+
+    def test_greedy_starts_from_depot(self, depot_graph):
+        """Greedy solver should start from depot when present."""
+        result = greedy_solve(depot_graph)
+        assert result.route[0] == "D0"
+
+    def test_greedy_visits_all_nodes_with_depot(self, depot_graph):
+        """Greedy should visit all nodes including depot."""
+        result = greedy_solve(depot_graph)
+        assert set(result.route) == {"D0", "N1", "N2", "N3"}
+        assert len(result.route) == 4
+
+    def test_greedy_depot_id_in_response(self, depot_graph):
+        """Response should include depot_id."""
+        result = greedy_solve(depot_graph)
+        assert result.depot_id == "D0"
+
+    def test_greedy_no_depot_id_without_depot(self, simple_graph):
+        """Response should have None depot_id when no depot."""
+        result = greedy_solve(simple_graph)
+        assert result.depot_id is None
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

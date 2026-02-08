@@ -75,8 +75,10 @@ export const ResultsHistory: React.FC<ResultsHistoryProps> = ({ onLoadResult }) 
 
     // Expose addToHistory for parent component
     React.useEffect(() => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (window as any).__addToHistory = addToHistory;
         return () => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             delete (window as any).__addToHistory;
         };
     }, [addToHistory]);

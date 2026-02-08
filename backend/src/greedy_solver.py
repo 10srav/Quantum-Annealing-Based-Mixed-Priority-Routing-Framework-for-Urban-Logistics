@@ -10,6 +10,7 @@ import time
 import math
 
 from .data_models import CityGraph, NodeType, SolverResponse
+from .qubo_builder import count_priority_violations, compute_efficiency_ratio
 
 
 def euclidean_distance(x1: float, y1: float, x2: float, y2: float) -> float:
@@ -58,9 +59,15 @@ def greedy_solve(graph: CityGraph) -> SolverResponse:
         dist = euclidean_distance(n1.x, n1.y, n2.x, n2.y)
         return dist, dist
 
-    # Start from the first node
+    # Start from the depot (if present), otherwise the first node
+    depot = graph.depot_node
     unvisited = list(nodes)
-    current = unvisited.pop(0)
+    if depot:
+        # Remove depot from unvisited delivery candidates
+        unvisited = [n for n in unvisited if n.id != depot.id]
+        current = depot
+    else:
+        current = unvisited.pop(0)
     route.append(current.id)
 
     # Always pick the nearest unvisited node — no priority logic
@@ -98,13 +105,24 @@ def greedy_solve(graph: CityGraph) -> SolverResponse:
 
     feasible = len(route) == len(nodes) and len(set(route)) == len(route)
 
+    # Compute evaluation metrics
+    rounded_distance = round(total_distance, 2)
+    rounded_time = round(travel_time, 2)
+    violation_count = count_priority_violations(route, graph)
+    efficiency_ratio = compute_efficiency_ratio(route, rounded_distance, graph) if feasible else None
+    traffic_ratio = round(rounded_time / rounded_distance, 4) if feasible and rounded_distance > 0 else None
+
     return SolverResponse(
         route=route,
-        total_distance=round(total_distance, 2),
-        travel_time=round(travel_time, 2),
+        total_distance=rounded_distance,
+        travel_time=rounded_time,
         feasible=feasible,
         priority_satisfied=priority_satisfied,
         solve_time_ms=round(solve_time_ms, 3),
         energy=None,
-        solver_used="greedy"
+        solver_used="greedy",
+        distance_efficiency_ratio=round(efficiency_ratio, 4) if efficiency_ratio else None,
+        priority_violation_count=violation_count,
+        traffic_time_ratio=traffic_ratio,
+        depot_id=depot.id if depot else None,
     )

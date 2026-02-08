@@ -23,6 +23,7 @@ export const RouteVisualizer: React.FC<RouteVisualizerProps> = ({
     const priorityIds = new Set(
         graph.nodes.filter(n => n.type === 'priority').map(n => n.id)
     );
+    const depotId = result.depot_id;
     const numPriority = priorityIds.size;
 
     return (
@@ -30,21 +31,25 @@ export const RouteVisualizer: React.FC<RouteVisualizerProps> = ({
             <h4>{title}</h4>
             <div className="route-stops">
                 {result.route.map((nodeId, index) => {
+                    const isDepot = nodeId === depotId;
                     const isPriority = priorityIds.has(nodeId);
                     const node = graph.nodes.find(n => n.id === nodeId);
-                    const isInPriorityZone = index < numPriority;
+                    // When depot is present, priority zone starts after depot
+                    const priorityZoneStart = depotId ? 1 : 0;
+                    const isInPriorityZone = !isDepot && index >= priorityZoneStart && index < priorityZoneStart + numPriority;
 
                     return (
                         <React.Fragment key={nodeId}>
                             {index > 0 && <span className="route-arrow">→</span>}
                             <div
-                                className={`route-stop ${isPriority ? 'priority' : 'normal'} ${isInPriorityZone ? 'in-zone' : ''
+                                className={`route-stop ${isDepot ? 'depot' : isPriority ? 'priority' : 'normal'} ${isInPriorityZone ? 'in-zone' : ''
                                     }`}
                                 title={node?.label || nodeId}
                             >
                                 <span className="stop-id">{nodeId}</span>
                                 <span className="stop-order">#{index + 1}</span>
-                                {isPriority && <span className="priority-badge">P</span>}
+                                {isDepot && <span className="depot-badge">D</span>}
+                                {!isDepot && isPriority && <span className="priority-badge">P</span>}
                             </div>
                         </React.Fragment>
                     );

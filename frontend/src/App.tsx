@@ -27,6 +27,7 @@ function App() {
     checkHealth();
     // Generate initial city on mount
     generate(8, 0.3, 'mixed');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleSolve = async (solver: SolverType, params?: QUBOParams) => {
@@ -41,9 +42,9 @@ function App() {
     await compare(graph);
   };
 
-  const handleGenerate = async (nodes: number, priorityRatio: number, traffic: string) => {
+  const handleGenerate = async (nodes: number, priorityRatio: number, traffic: string, includeDepot: boolean = false) => {
     clear();
-    await generate(nodes, priorityRatio, traffic);
+    await generate(nodes, priorityRatio, traffic, includeDepot);
   };
 
   const handleGraphChange = (newGraph: CityGraph) => {

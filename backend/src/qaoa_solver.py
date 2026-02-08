@@ -9,7 +9,7 @@ import time
 from typing import Any
 
 from .data_models import CityGraph, QUBOParams, SolverResponse
-from .qubo_builder import build_qubo, decode_route, validate_route, compute_route_metrics
+from .qubo_builder import build_qubo, decode_route, validate_route, compute_route_metrics, count_priority_violations, compute_efficiency_ratio
 from .config import get_settings
 
 # Import dimod for BQM handling
@@ -188,9 +188,10 @@ def quantum_solve(
     # Get best sample
     best = sampleset.first
     
-    # Decode route
-    node_ids = [n.id for n in graph.nodes]
-    route = decode_route(best.sample, node_ids)
+    # Decode route — QUBO only covers delivery nodes; prepend depot if present
+    depot = graph.depot_node
+    node_ids = [n.id for n in graph.delivery_nodes]
+    route = decode_route(best.sample, node_ids, depot_id=depot.id if depot else None)
     
     # Validate
     feasible, priority_satisfied = validate_route(route, graph)
@@ -201,9 +202,14 @@ def quantum_solve(
     else:
         total_distance = float('inf')
         travel_time = float('inf')
-    
+
+    # Compute evaluation metrics
+    violation_count = count_priority_violations(route, graph)
+    efficiency_ratio = compute_efficiency_ratio(route, total_distance, graph) if feasible else None
+    traffic_ratio = round(travel_time / total_distance, 4) if feasible and total_distance > 0 else None
+
     solve_time_ms = (time.time() - start_time) * 1000
-    
+
     return SolverResponse(
         route=route,
         total_distance=total_distance,
@@ -212,7 +218,11 @@ def quantum_solve(
         priority_satisfied=priority_satisfied,
         solve_time_ms=solve_time_ms,
         energy=best.energy,
-        solver_used=f"quantum ({solver_name})"
+        solver_used=f"quantum ({solver_name})",
+        distance_efficiency_ratio=round(efficiency_ratio, 4) if efficiency_ratio else None,
+        priority_violation_count=violation_count,
+        traffic_time_ratio=traffic_ratio,
+        depot_id=depot.id if depot else None,
     )
 
 

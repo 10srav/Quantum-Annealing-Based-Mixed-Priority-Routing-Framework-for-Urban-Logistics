@@ -20,37 +20,55 @@ def generate_random_city(
     priority_ratio: float = 0.3,
     traffic_profile: Literal["low", "mixed", "high"] = "mixed",
     connectivity: int = 3,
-    seed: int | None = None
+    seed: int | None = None,
+    include_depot: bool = False,
 ) -> CityGraph:
     """
     Generate a random city graph for testing.
-    
+
     Args:
-        n_nodes: Total number of nodes
-        priority_ratio: Fraction of nodes that are priority (0.0-1.0)
+        n_nodes: Total number of nodes (including depot if requested)
+        priority_ratio: Fraction of delivery nodes that are priority (0.0-1.0)
         traffic_profile: Distribution of traffic levels
         connectivity: Average number of edges per node (k-nearest neighbors)
         seed: Random seed for reproducibility
-        
+        include_depot: If True, the first node is a depot/warehouse near grid center
+
     Returns:
         CityGraph with random nodes and edges
     """
     if seed is not None:
         random.seed(seed)
-    
+
     # Generate node positions in a 10x10 grid
     nodes = []
     positions = []
-    
-    for i in range(n_nodes):
+
+    # If depot requested, create it first near grid center
+    start_idx = 0
+    if include_depot:
+        dx = random.uniform(4, 6)
+        dy = random.uniform(4, 6)
+        positions.append((dx, dy))
+        nodes.append(Node(
+            id="D0",
+            x=round(dx, 2),
+            y=round(dy, 2),
+            type=NodeType.DEPOT,
+            label="Depot",
+        ))
+        start_idx = 1
+
+    n_delivery = n_nodes - start_idx
+    for i in range(n_delivery):
         x = random.uniform(0, 10)
         y = random.uniform(0, 10)
         positions.append((x, y))
-        
+
         # Assign priority based on ratio
         is_priority = random.random() < priority_ratio
         node_type = NodeType.PRIORITY if is_priority else NodeType.NORMAL
-        
+
         nodes.append(Node(
             id=f"N{i+1}",
             x=round(x, 2),
@@ -58,13 +76,15 @@ def generate_random_city(
             type=node_type,
             label=f"{'Priority' if is_priority else 'Normal'} {i+1}"
         ))
-    
-    # Ensure at least one priority node
-    if not any(n.type == NodeType.PRIORITY for n in nodes):
-        nodes[0] = Node(
-            id=nodes[0].id,
-            x=nodes[0].x,
-            y=nodes[0].y,
+
+    # Ensure at least one priority node among delivery nodes
+    delivery_nodes = [n for n in nodes if n.type != NodeType.DEPOT]
+    if not any(n.type == NodeType.PRIORITY for n in delivery_nodes):
+        idx = start_idx  # first delivery node index
+        nodes[idx] = Node(
+            id=nodes[idx].id,
+            x=nodes[idx].x,
+            y=nodes[idx].y,
             type=NodeType.PRIORITY,
             label="Priority 1"
         )

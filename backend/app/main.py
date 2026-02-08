@@ -420,7 +420,8 @@ async def generate_city(request: Request, city_request: GenerateCityRequest, _: 
         n_nodes=city_request.n_nodes,
         priority_ratio=city_request.priority_ratio,
         traffic_profile=city_request.traffic_profile,
-        seed=city_request.seed
+        seed=city_request.seed,
+        include_depot=city_request.include_depot,
     )
 
 

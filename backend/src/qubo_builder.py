@@ -34,13 +34,15 @@ def build_qubo(
     if params is None:
         params = QUBOParams()
     
-    nodes = graph.nodes
-    n = len(nodes)
-    node_ids = [node.id for node in nodes]
-    
-    # Separate priority and normal nodes
-    priority_ids = [node.id for node in nodes if node.type == NodeType.PRIORITY]
-    normal_ids = [node.id for node in nodes if node.type == NodeType.NORMAL]
+    # Exclude depot from QUBO variables — depot is prepended to the route after decoding
+    delivery_nodes = graph.delivery_nodes
+    n = len(delivery_nodes)
+    node_ids = [node.id for node in delivery_nodes]
+    depot = graph.depot_node
+
+    # Separate priority and normal nodes (among delivery nodes only)
+    priority_ids = [node.id for node in delivery_nodes if node.type == NodeType.PRIORITY]
+    normal_ids = [node.id for node in delivery_nodes if node.type == NodeType.NORMAL]
     k = len(priority_ids)  # Number of priority positions
     
     # Create BQM
@@ -135,24 +137,39 @@ def build_qubo(
                             var(node_v, p + 1),
                             params.C * weight
                         )
-    
+
+    # ============================================================
+    # Depot bias: Add depot→first-node distance as linear bias
+    # on position 0 variables so QAOA prefers nearby first stops.
+    # ============================================================
+    if depot is not None:
+        for node_id in node_ids:
+            weight = graph.get_edge_weight(depot.id, node_id)
+            if weight < float('inf'):
+                bqm.add_linear(var(node_id, 0), params.C * weight)
+
     return bqm
 
 
-def decode_route(sample: dict[str, int], node_ids: list[str]) -> list[str]:
+def decode_route(
+    sample: dict[str, int],
+    node_ids: list[str],
+    depot_id: str | None = None,
+) -> list[str]:
     """
     Decode a QUBO sample into an ordered route.
-    
+
     Args:
         sample: Binary variable assignments from sampler
-        node_ids: List of node IDs in the graph
-        
+        node_ids: List of delivery node IDs (excluding depot)
+        depot_id: If provided, prepended to the decoded route
+
     Returns:
         Ordered list of node IDs representing the route
     """
     n = len(node_ids)
     route = [None] * n
-    
+
     for key, value in sample.items():
         if value == 1 and key.startswith("x_"):
             parts = key.split("_")
@@ -160,9 +177,15 @@ def decode_route(sample: dict[str, int], node_ids: list[str]) -> list[str]:
             pos = int(parts[-1])
             if 0 <= pos < n:
                 route[pos] = node_id
-    
-    # Remove None values and return
-    return [node_id for node_id in route if node_id is not None]
+
+    # Remove None values
+    decoded = [node_id for node_id in route if node_id is not None]
+
+    # Prepend depot if present
+    if depot_id is not None:
+        decoded = [depot_id] + decoded
+
+    return decoded
 
 
 def validate_route(
@@ -171,33 +194,37 @@ def validate_route(
 ) -> tuple[bool, bool]:
     """
     Validate a route against constraints.
-    
+
     Args:
         route: Ordered list of node IDs
         graph: City graph
-        
+
     Returns:
         Tuple of (feasible, priority_satisfied)
     """
     node_ids = [n.id for n in graph.nodes]
     priority_ids = set(n.id for n in graph.priority_nodes)
     k = len(priority_ids)
-    
+    depot = graph.depot_node
+
     # Check if route covers all nodes
     if set(route) != set(node_ids):
         return False, False
-    
-    # Check if all priority nodes appear before any normal node
-    priority_positions = [i for i, node_id in enumerate(route) if node_id in priority_ids]
+
+    # Priority ordering is checked among delivery positions only.
+    # If depot exists, it occupies position 0 — skip it for priority check.
+    delivery_route = route[1:] if depot and route and route[0] == depot.id else route
+
+    priority_positions = [i for i, node_id in enumerate(delivery_route) if node_id in priority_ids]
     if not priority_positions:
         priority_satisfied = True if k == 0 else False
     else:
         max_priority_pos = max(priority_positions)
         priority_satisfied = max_priority_pos < k
-    
+
     # Route is feasible if it visits all nodes exactly once
     feasible = len(route) == len(node_ids) and len(set(route)) == len(route)
-    
+
     return feasible, priority_satisfied
 
 
@@ -242,3 +269,65 @@ def compute_route_metrics(
                 travel_time += dist
     
     return total_distance, travel_time
+
+
+def count_priority_violations(route: list[str], graph: CityGraph) -> int:
+    """
+    Count how many priority nodes are NOT in the first k positions.
+
+    Args:
+        route: Ordered list of node IDs
+        graph: City graph
+
+    Returns:
+        Number of priority nodes appearing after position k (0 = fully satisfied)
+    """
+    priority_ids = set(n.id for n in graph.priority_nodes)
+    k = len(priority_ids)
+
+    if k == 0:
+        return 0
+
+    # Skip depot at position 0 — priority ordering applies to delivery positions only
+    depot = graph.depot_node
+    delivery_route = route[1:] if depot and route and route[0] == depot.id else route
+
+    violations = 0
+    for i, node_id in enumerate(delivery_route):
+        if node_id in priority_ids and i >= k:
+            violations += 1
+
+    return violations
+
+
+def compute_efficiency_ratio(route: list[str], total_distance: float, graph: CityGraph) -> float:
+    """
+    Compute distance efficiency ratio: actual route distance / straight-line distance.
+
+    A ratio of 1.0 means the route is perfectly straight. Higher values mean
+    more detour. Useful for comparing how much extra distance priority
+    constraints or traffic avoidance adds.
+
+    Args:
+        route: Ordered list of node IDs
+        total_distance: Pre-computed total route distance
+        graph: City graph
+
+    Returns:
+        Efficiency ratio (>=1.0, lower is better). Returns 1.0 for degenerate cases.
+    """
+    if len(route) < 2 or total_distance <= 0:
+        return 1.0
+
+    node_lookup = {n.id: n for n in graph.nodes}
+    start = node_lookup.get(route[0])
+    end = node_lookup.get(route[-1])
+
+    if not start or not end:
+        return 1.0
+
+    euclidean = ((end.x - start.x) ** 2 + (end.y - start.y) ** 2) ** 0.5
+    if euclidean <= 0:
+        return 1.0
+
+    return total_distance / euclidean

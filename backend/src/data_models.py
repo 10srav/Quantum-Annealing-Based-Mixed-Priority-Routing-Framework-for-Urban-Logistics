@@ -3,7 +3,7 @@ Data models for the Quantum Priority Router.
 Defines Pydantic models for nodes, edges, graphs, and API request/responses.
 """
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, model_validator
 from enum import Enum
 from typing import Literal
 
@@ -12,6 +12,7 @@ class NodeType(str, Enum):
     """Node priority classification."""
     PRIORITY = "priority"
     NORMAL = "normal"
+    DEPOT = "depot"
 
 
 class TrafficLevel(str, Enum):
@@ -65,6 +66,25 @@ class CityGraph(BaseModel):
         """Get all normal nodes."""
         return [n for n in self.nodes if n.type == NodeType.NORMAL]
 
+    @property
+    def depot_node(self) -> Node | None:
+        """Get the depot node, if any."""
+        depots = [n for n in self.nodes if n.type == NodeType.DEPOT]
+        return depots[0] if depots else None
+
+    @property
+    def delivery_nodes(self) -> list[Node]:
+        """Get all delivery nodes (priority + normal, excluding depot)."""
+        return [n for n in self.nodes if n.type != NodeType.DEPOT]
+
+    @model_validator(mode="after")
+    def validate_single_depot(self) -> "CityGraph":
+        """Ensure at most one depot node exists."""
+        depot_count = sum(1 for n in self.nodes if n.type == NodeType.DEPOT)
+        if depot_count > 1:
+            raise ValueError(f"At most 1 depot node allowed, found {depot_count}")
+        return self
+
     def get_node(self, node_id: str) -> Node | None:
         """Get node by ID."""
         return next((n for n in self.nodes if n.id == node_id), None)
@@ -113,6 +133,10 @@ class GenerateCityRequest(BaseModel):
         default=None,
         description="Random seed for reproducibility"
     )
+    include_depot: bool = Field(
+        default=False,
+        description="Whether to include a depot/warehouse node as fixed starting point"
+    )
 
 
 class SolverRequest(BaseModel):
@@ -132,6 +156,10 @@ class SolverResponse(BaseModel):
     solve_time_ms: float = Field(..., description="Solver execution time")
     energy: float | None = Field(None, description="QUBO energy (quantum only)")
     solver_used: str = Field(..., description="Solver that produced this result")
+    distance_efficiency_ratio: float | None = Field(None, description="Route distance / straight-line distance (>=1.0, lower=better)")
+    priority_violation_count: int = Field(0, description="Number of priority nodes not in first k positions")
+    traffic_time_ratio: float | None = Field(None, description="Travel time / total distance ratio (1.0=no traffic impact)")
+    depot_id: str | None = Field(None, description="ID of the depot/starting node")
 
 
 class ComparisonResponse(BaseModel):
@@ -140,3 +168,4 @@ class ComparisonResponse(BaseModel):
     greedy: SolverResponse
     distance_reduction_pct: float = Field(..., description="% distance saved by quantum")
     time_reduction_pct: float = Field(..., description="% time saved by quantum")
+    traffic_time_comparison: dict | None = Field(None, description="Traffic time ratios for each solver")
