@@ -26,24 +26,27 @@ export const MetricsTable: React.FC<MetricsTableProps> = ({
 
     return (
         <div className="metrics-table">
-            <h3>📊 Results</h3>
+            <h3>
+                <span className="section-icon section-icon--results">R</span>
+                Results
+            </h3>
 
             <table>
                 <thead>
                     <tr>
                         <th>Metric</th>
-                        {quantumResult && <th>⚛️ Quantum</th>}
-                        {greedyResult && <th>🔢 Greedy</th>}
+                        {quantumResult && <th className="text-quantum">Quantum</th>}
+                        {greedyResult && <th className="text-cyan">Greedy</th>}
                     </tr>
                 </thead>
                 <tbody>
                     <tr>
                         <td>Route</td>
                         {quantumResult && (
-                            <td className="route-cell">{quantumResult.route.join(' → ')}</td>
+                            <td className="route-cell">{quantumResult.route.join(' \u2192 ')}</td>
                         )}
                         {greedyResult && (
-                            <td className="route-cell">{greedyResult.route.join(' → ')}</td>
+                            <td className="route-cell">{greedyResult.route.join(' \u2192 ')}</td>
                         )}
                     </tr>
                     <tr>
@@ -60,12 +63,12 @@ export const MetricsTable: React.FC<MetricsTableProps> = ({
                         <td>Feasible</td>
                         {quantumResult && (
                             <td className={quantumResult.feasible ? 'status-ok' : 'status-fail'}>
-                                {quantumResult.feasible ? '✓' : '✗'}
+                                {quantumResult.feasible ? 'Yes' : 'No'}
                             </td>
                         )}
                         {greedyResult && (
                             <td className={greedyResult.feasible ? 'status-ok' : 'status-fail'}>
-                                {greedyResult.feasible ? '✓' : '✗'}
+                                {greedyResult.feasible ? 'Yes' : 'No'}
                             </td>
                         )}
                     </tr>
@@ -73,12 +76,12 @@ export const MetricsTable: React.FC<MetricsTableProps> = ({
                         <td>Priority Satisfied</td>
                         {quantumResult && (
                             <td className={quantumResult.priority_satisfied ? 'status-ok' : 'status-fail'}>
-                                {quantumResult.priority_satisfied ? '✓' : '✗'}
+                                {quantumResult.priority_satisfied ? 'Yes' : 'No'}
                             </td>
                         )}
                         {greedyResult && (
                             <td className={greedyResult.priority_satisfied ? 'status-ok' : 'status-fail'}>
-                                {greedyResult.priority_satisfied ? '✓' : '✗'}
+                                {greedyResult.priority_satisfied ? 'Yes' : 'No'}
                             </td>
                         )}
                     </tr>
@@ -130,20 +133,22 @@ export const MetricsTable: React.FC<MetricsTableProps> = ({
 
             {comparison && (
                 <div className="comparison-summary">
-                    <h4>📈 Comparison</h4>
-                    <div className={`metric-card ${comparison.distance_reduction_pct > 0 ? 'positive' : 'negative'}`}>
-                        <span className="metric-value">
-                            {comparison.distance_reduction_pct > 0 ? '+' : ''}
-                            {comparison.distance_reduction_pct.toFixed(1)}%
-                        </span>
-                        <span className="metric-label">Distance Reduction</span>
-                    </div>
-                    <div className={`metric-card ${comparison.time_reduction_pct > 0 ? 'positive' : 'negative'}`}>
-                        <span className="metric-value">
-                            {comparison.time_reduction_pct > 0 ? '+' : ''}
-                            {comparison.time_reduction_pct.toFixed(1)}%
-                        </span>
-                        <span className="metric-label">Time Reduction</span>
+                    <h4>Comparison</h4>
+                    <div className="metric-cards">
+                        <div className={`metric-card ${comparison.distance_reduction_pct > 0 ? 'positive' : 'negative'}`}>
+                            <span className="metric-value">
+                                {comparison.distance_reduction_pct > 0 ? '+' : ''}
+                                {comparison.distance_reduction_pct.toFixed(1)}%
+                            </span>
+                            <span className="metric-label">Distance Reduction</span>
+                        </div>
+                        <div className={`metric-card ${comparison.time_reduction_pct > 0 ? 'positive' : 'negative'}`}>
+                            <span className="metric-value">
+                                {comparison.time_reduction_pct > 0 ? '+' : ''}
+                                {comparison.time_reduction_pct.toFixed(1)}%
+                            </span>
+                            <span className="metric-label">Time Reduction</span>
+                        </div>
                     </div>
                 </div>
             )}

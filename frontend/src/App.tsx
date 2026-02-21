@@ -25,7 +25,6 @@ function App() {
 
   useEffect(() => {
     checkHealth();
-    // Generate initial city on mount
     generate(8, 0.3, 'mixed');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -49,7 +48,7 @@ function App() {
 
   const handleGraphChange = (newGraph: CityGraph) => {
     setGraph(newGraph);
-    clear(); // Clear previous results when graph changes
+    clear();
   };
 
   const displayRoute = selectedSolver === 'quantum' && quantumResult
@@ -65,16 +64,25 @@ function App() {
     <div className="app">
       <header className="app-header">
         <div className="header-content">
-          <h1>⚛️ Quantum Priority Router</h1>
+          <h1>
+            <span className="header-icon">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" /><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83" /></svg>
+            </span>
+            Quantum Priority Router
+          </h1>
           <p className="subtitle">QAOA Quantum Optimization for Urban Logistics</p>
         </div>
         <div className="health-status">
           {health ? (
             <span className={`status-badge ${health.status === 'healthy' ? 'ok' : 'error'}`}>
-              {health.status === 'healthy' ? '⚛️ QAOA' : '🔌 Mock Mode'}
+              <span className="status-indicator" />
+              {health.status === 'healthy' ? 'QAOA Active' : 'Mock Mode'}
             </span>
           ) : (
-            <span className="status-badge loading">Connecting...</span>
+            <span className="status-badge loading">
+              <span className="status-indicator" />
+              Connecting
+            </span>
           )}
         </div>
       </header>
@@ -82,9 +90,18 @@ function App() {
       <main className="app-main">
         <div className="main-content">
           <section className="map-section">
-            <h2>🗺️ Interactive City Map</h2>
+            <div className="section-header">
+              <span className="section-icon section-icon--map">M</span>
+              <h2>Interactive City Map</h2>
+            </div>
             <p className="section-hint">Click on the map to add delivery points. Use the toolbar to set priority or delete nodes.</p>
-            {error && <div className="error-message">⚠️ {error}</div>}
+
+            {error && (
+              <div className="error-message">
+                <span className="error-icon">!</span>
+                {error}
+              </div>
+            )}
 
             <InteractiveMap
               graph={graph}
@@ -94,7 +111,6 @@ function App() {
               editable={true}
             />
 
-            {/* Results shown under the map */}
             {(quantumResult || greedyResult || comparison) && (
               <div className="map-results">
                 <div className="results-grid">
@@ -110,14 +126,14 @@ function App() {
                       <RouteVisualizer
                         graph={graph}
                         result={quantumResult}
-                        title="⚛️ Quantum Route"
+                        title="Quantum Route"
                       />
                     )}
                     {greedyResult && (
                       <RouteVisualizer
                         graph={graph}
                         result={greedyResult}
-                        title="🔢 Greedy Route"
+                        title="Greedy Route"
                       />
                     )}
                   </div>
@@ -126,7 +142,7 @@ function App() {
             )}
           </section>
 
-          <aside className="controls-section">
+          <aside className="controls-sidebar">
             <SolverControls
               onSolve={handleSolve}
               onCompare={handleCompare}
@@ -139,7 +155,7 @@ function App() {
       </main>
 
       <footer className="app-footer">
-        <p>Quantum-Annealing Mixed-Priority Routing | Built with Qiskit QAOA</p>
+        <p>Quantum-Annealing Mixed-Priority Routing Framework | Built with Qiskit QAOA</p>
       </footer>
     </div>
   );

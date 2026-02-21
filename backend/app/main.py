@@ -39,7 +39,7 @@ from src.data_models import (
     GenerateCityRequest,
 )
 from src.qaoa_solver import quantum_solve, get_sampler_info, check_solver_health
-from src.greedy_solver import greedy_solve
+from src.greedy_solver import greedy_solve, greedy_priority_solve
 from src.metrics import compare_solutions
 from src.simulator import generate_random_city
 from src.config import get_settings
@@ -374,6 +374,11 @@ async def solve_route(request: Request, solver_request: SolverRequest, _: bool =
             solver_request.graph,
             solver_request.params,
             use_mock=settings.qaoa_use_mock
+        )
+    elif solver_request.solver == "greedy-priority":
+        result = await run_solver_with_timeout(
+            greedy_priority_solve,
+            solver_request.graph
         )
     else:
         result = await run_solver_with_timeout(

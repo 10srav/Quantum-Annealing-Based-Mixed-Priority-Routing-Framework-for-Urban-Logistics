@@ -31,10 +31,13 @@ export const SolverControls: React.FC<SolverControlsProps> = ({
     return (
         <div className="solver-controls">
             <div className="controls-section">
-                <h3>🏙️ City Generator</h3>
+                <h3>
+                    <span className="group-icon group-icon--city">C</span>
+                    City Generator
+                </h3>
                 <div className="control-group">
                     <label>
-                        Nodes: {numNodes}
+                        Nodes: <span className="control-value">{numNodes}</span>
                         <input
                             type="range"
                             min="5"
@@ -46,7 +49,7 @@ export const SolverControls: React.FC<SolverControlsProps> = ({
                 </div>
                 <div className="control-group">
                     <label>
-                        Priority Ratio: {(priorityRatio * 100).toFixed(0)}%
+                        Priority Ratio: <span className="control-value">{(priorityRatio * 100).toFixed(0)}%</span>
                         <input
                             type="range"
                             min="0.1"
@@ -85,18 +88,21 @@ export const SolverControls: React.FC<SolverControlsProps> = ({
                     onClick={() => onGenerate(numNodes, priorityRatio, trafficProfile, includeDepot)}
                     disabled={loading}
                 >
-                    🎲 Generate City
+                    Generate City
                 </button>
             </div>
 
             <div className="controls-section">
-                <h3>⚛️ Quantum Solver</h3>
+                <h3>
+                    <span className="group-icon group-icon--quantum">Q</span>
+                    Quantum Solver
+                </h3>
 
                 <button
                     className="btn btn-toggle"
                     onClick={() => setShowAdvanced(!showAdvanced)}
                 >
-                    {showAdvanced ? '▼' : '▶'} QUBO Parameters
+                    {showAdvanced ? '\u25BC' : '\u25B6'} QUBO Parameters
                 </button>
 
                 {showAdvanced && (
@@ -139,21 +145,34 @@ export const SolverControls: React.FC<SolverControlsProps> = ({
             </div>
 
             <div className="controls-section controls-section--actions">
-                <h3>🚀 Run Solver</h3>
+                <h3>
+                    <span className="group-icon group-icon--solver">R</span>
+                    Run Solver
+                </h3>
                 <div className="solver-buttons">
                     <button
                         className="btn btn-quantum"
                         onClick={() => onSolve('quantum', params)}
                         disabled={loading || !graphLoaded}
                     >
-                        {loading ? '⏳' : '⚛️'} Quantum
+                        {loading ? <span className="btn-spinner" /> : null}
+                        Quantum
                     </button>
                     <button
                         className="btn btn-greedy"
                         onClick={() => onSolve('greedy')}
                         disabled={loading || !graphLoaded}
                     >
-                        {loading ? '⏳' : '🔢'} Greedy
+                        {loading ? <span className="btn-spinner" /> : null}
+                        Greedy
+                    </button>
+                    <button
+                        className="btn btn-greedy-priority"
+                        onClick={() => onSolve('greedy-priority')}
+                        disabled={loading || !graphLoaded}
+                    >
+                        {loading ? <span className="btn-spinner" /> : null}
+                        Priority
                     </button>
                 </div>
                 <button
@@ -161,7 +180,7 @@ export const SolverControls: React.FC<SolverControlsProps> = ({
                     onClick={onCompare}
                     disabled={loading || !graphLoaded}
                 >
-                    {loading ? '⏳ Running...' : '⚔️ Compare Both'}
+                    {loading ? <><span className="btn-spinner" /> Running...</> : 'Compare All'}
                 </button>
             </div>
         </div>

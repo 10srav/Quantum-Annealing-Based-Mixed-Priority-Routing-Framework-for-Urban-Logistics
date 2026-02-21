@@ -29,7 +29,7 @@ export const ResultsHistory: React.FC<ResultsHistoryProps> = ({ onLoadResult }) 
             solver: result.solver_used,
             result,
         };
-        setHistory(prev => [entry, ...prev].slice(0, 50)); // Keep last 50
+        setHistory(prev => [entry, ...prev].slice(0, 50));
         setNextId(prev => prev + 1);
     }, [nextId]);
 
@@ -51,7 +51,7 @@ export const ResultsHistory: React.FC<ResultsHistoryProps> = ({ onLoadResult }) 
             entry.timestamp.toISOString(),
             entry.graphSize,
             entry.solver,
-            entry.result.route.join(' → '),
+            entry.result.route.join(' \u2192 '),
             entry.result.total_distance,
             entry.result.travel_time,
             entry.result.feasible,
@@ -83,24 +83,39 @@ export const ResultsHistory: React.FC<ResultsHistoryProps> = ({ onLoadResult }) 
         };
     }, [addToHistory]);
 
+    const getSolverBadgeClass = (solver: string) => {
+        if (solver.includes('quantum')) return 'quantum';
+        if (solver.includes('priority')) return 'greedy-priority';
+        return 'greedy';
+    };
+
+    const getSolverLabel = (solver: string) => {
+        if (solver.includes('quantum')) return 'Q';
+        if (solver.includes('priority')) return 'P';
+        return 'G';
+    };
+
     return (
         <div className="results-history">
             <div className="history-header">
-                <h3>📋 Results History</h3>
+                <h3>
+                    <span className="section-icon section-icon--history">H</span>
+                    Results History
+                </h3>
                 <div className="history-actions">
                     <button
-                        className="btn btn-sm"
+                        className="btn btn-sm btn-secondary"
                         onClick={exportToCsv}
                         disabled={history.length === 0}
                     >
-                        📥 Export CSV
+                        Export CSV
                     </button>
                     <button
                         className="btn btn-sm btn-danger"
                         onClick={clearHistory}
                         disabled={history.length === 0}
                     >
-                        🗑️ Clear
+                        Clear
                     </button>
                 </div>
             </div>
@@ -119,7 +134,7 @@ export const ResultsHistory: React.FC<ResultsHistoryProps> = ({ onLoadResult }) 
                                 <th>Nodes</th>
                                 <th>Solver</th>
                                 <th>Distance</th>
-                                <th>✓</th>
+                                <th>Status</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -133,13 +148,13 @@ export const ResultsHistory: React.FC<ResultsHistoryProps> = ({ onLoadResult }) 
                                     <td>{entry.timestamp.toLocaleTimeString()}</td>
                                     <td>{entry.graphSize}</td>
                                     <td>
-                                        <span className={`solver-badge ${entry.solver.includes('quantum') ? 'quantum' : 'greedy'}`}>
-                                            {entry.solver.includes('quantum') ? '⚛️' : '🔢'}
+                                        <span className={`solver-badge ${getSolverBadgeClass(entry.solver)}`}>
+                                            {getSolverLabel(entry.solver)}
                                         </span>
                                     </td>
                                     <td>{entry.result.total_distance.toFixed(1)}</td>
-                                    <td>
-                                        {entry.result.feasible && entry.result.priority_satisfied ? '✅' : '❌'}
+                                    <td className={entry.result.feasible && entry.result.priority_satisfied ? 'status-ok' : 'status-fail'}>
+                                        {entry.result.feasible && entry.result.priority_satisfied ? 'Pass' : 'Fail'}
                                     </td>
                                 </tr>
                             ))}

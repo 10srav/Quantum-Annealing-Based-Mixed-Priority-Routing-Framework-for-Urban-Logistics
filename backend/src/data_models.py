@@ -142,7 +142,10 @@ class GenerateCityRequest(BaseModel):
 class SolverRequest(BaseModel):
     """API request for route solving."""
     graph: CityGraph = Field(..., description="City graph to solve")
-    solver: Literal["quantum", "greedy"] = Field("quantum", description="Solver type")
+    solver: Literal["quantum", "greedy", "greedy-priority"] = Field(
+        "quantum",
+        description="Solver: quantum (QAOA), greedy (baseline), greedy-priority (priority-aware + 2-opt)"
+    )
     params: QUBOParams | None = Field(None, description="QUBO parameters (quantum only)")
 
 

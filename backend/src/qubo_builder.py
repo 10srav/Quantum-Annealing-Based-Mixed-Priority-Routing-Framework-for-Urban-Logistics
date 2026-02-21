@@ -60,37 +60,41 @@ def build_qubo(
     # ============================================================
     # Constraint 1: Each position has exactly one node
     # sum_i(x_{i,p}) = 1 for all p
-    # Penalty: A * (1 - sum_i(x_{i,p}))^2 = A * (1 - 2*sum + sum^2)
+    # Penalty: A * (1 - sum_i(x_{i,p}))^2
+    # Expanded (using x^2=x for binary):
+    #   A * [1 - sum_i(x_{i,p}) + 2*sum_{i<j}(x_{i,p}*x_{j,p})]
     # ============================================================
     for p in range(n):
-        # Linear terms: -2A for each variable
+        # Linear terms: -A for each variable
         for node_id in node_ids:
-            bqm.add_linear(var(node_id, p), -2 * params.A)
-        
+            bqm.add_linear(var(node_id, p), -1 * params.A)
+
         # Quadratic terms: 2A for each pair (x_i,p * x_j,p where i != j)
         for i, node_i in enumerate(node_ids):
             for j, node_j in enumerate(node_ids):
                 if i < j:
                     bqm.add_quadratic(var(node_i, p), var(node_j, p), 2 * params.A)
-        
-        # Constant term: A (we track this separately if needed)
+
+        # Constant term: A
         bqm.offset += params.A
-    
+
     # ============================================================
-    # Constraint 2: Each node appears at most once
-    # sum_p(x_{i,p}) <= 1 for all i
-    # For TSP we want exactly once, so: (sum_p(x_{i,p}) - 1)^2
+    # Constraint 2: Each node appears exactly once
+    # sum_p(x_{i,p}) = 1 for all i
+    # Penalty: A * (1 - sum_p(x_{i,p}))^2
+    # Expanded (using x^2=x for binary):
+    #   A * [1 - sum_p(x_{i,p}) + 2*sum_{p<q}(x_{i,p}*x_{i,q})]
     # ============================================================
     for node_id in node_ids:
-        # Linear terms: -2A for each variable
+        # Linear terms: -A for each variable
         for p in range(n):
-            bqm.add_linear(var(node_id, p), -2 * params.A)
-        
+            bqm.add_linear(var(node_id, p), -1 * params.A)
+
         # Quadratic terms: 2A for each pair (x_i,p * x_i,q where p != q)
         for p in range(n):
             for q in range(p + 1, n):
                 bqm.add_quadratic(var(node_id, p), var(node_id, q), 2 * params.A)
-        
+
         # Constant term: A
         bqm.offset += params.A
     
@@ -110,16 +114,18 @@ def build_qubo(
     # ============================================================
     # Constraint 4: All priority nodes must be visited
     # Penalty for missing priority: Bp * (1 - sum_p(x_{i,p}))^2
-    # We already enforce sum_p = 1 above, but add extra penalty for priority
+    # Extra penalty reinforcing that priority nodes MUST appear exactly once.
+    # Expanded (using x^2=x for binary):
+    #   Bp * [1 - sum_p(x_{i,p}) + 2*sum_{p<q}(x_{i,p}*x_{i,q})]
     # ============================================================
     for node_id in priority_ids:
         for p in range(n):
-            bqm.add_linear(var(node_id, p), -2 * params.Bp)
-        
+            bqm.add_linear(var(node_id, p), -1 * params.Bp)
+
         for p in range(n):
             for q in range(p + 1, n):
                 bqm.add_quadratic(var(node_id, p), var(node_id, q), 2 * params.Bp)
-        
+
         bqm.offset += params.Bp
     
     # ============================================================
@@ -228,46 +234,56 @@ def validate_route(
     return feasible, priority_satisfied
 
 
+def _build_edge_lookup(graph: CityGraph) -> dict[tuple[str, str], tuple[float, float]]:
+    """
+    Build O(1) edge lookup dictionary mapping (from, to) -> (distance, travel_time).
+
+    Returns both directions for undirected edges.
+    """
+    lookup = {}
+    for edge in graph.edges:
+        multiplier = graph.traffic_multipliers.get(edge.traffic.value, 1.0)
+        weighted = edge.distance * multiplier
+        lookup[(edge.from_node, edge.to_node)] = (edge.distance, weighted)
+        lookup[(edge.to_node, edge.from_node)] = (edge.distance, weighted)
+    return lookup
+
+
 def compute_route_metrics(
     route: list[str],
     graph: CityGraph
 ) -> tuple[float, float]:
     """
     Compute total distance and travel time for a route.
-    
+
     Args:
         route: Ordered list of node IDs
         graph: City graph
-        
+
     Returns:
         Tuple of (total_distance, travel_time)
     """
     total_distance = 0.0
     travel_time = 0.0
-    
+
+    edge_lookup = _build_edge_lookup(graph)
+    node_lookup = {n.id: n for n in graph.nodes}
+
     for i in range(len(route) - 1):
         from_id, to_id = route[i], route[i + 1]
-        
-        # Find edge
-        edge = None
-        for e in graph.edges:
-            if (e.from_node == from_id and e.to_node == to_id) or \
-               (e.from_node == to_id and e.to_node == from_id):
-                edge = e
-                break
-        
-        if edge:
-            total_distance += edge.distance
-            multiplier = graph.traffic_multipliers.get(edge.traffic.value, 1.0)
-            travel_time += edge.distance * multiplier
+
+        if (from_id, to_id) in edge_lookup:
+            dist, weighted = edge_lookup[(from_id, to_id)]
+            total_distance += dist
+            travel_time += weighted
         else:
-            # Use Euclidean distance as fallback
-            n1, n2 = graph.get_node(from_id), graph.get_node(to_id)
+            # Euclidean fallback for missing edges
+            n1, n2 = node_lookup.get(from_id), node_lookup.get(to_id)
             if n1 and n2:
                 dist = ((n1.x - n2.x) ** 2 + (n1.y - n2.y) ** 2) ** 0.5
                 total_distance += dist
                 travel_time += dist
-    
+
     return total_distance, travel_time
 
 
@@ -331,3 +347,131 @@ def compute_efficiency_ratio(route: list[str], total_distance: float, graph: Cit
         return 1.0
 
     return total_distance / euclidean
+
+
+def improve_route_2opt(
+    route: list[str],
+    graph: CityGraph,
+    max_iterations: int = 100,
+) -> list[str]:
+    """
+    Improve a route using 2-opt local search while preserving priority constraints.
+
+    The 2-opt heuristic iteratively reverses sub-segments of the route to reduce
+    total travel time. It only accepts swaps that keep priority nodes in the first
+    k delivery positions.
+
+    Args:
+        route: Initial route (may include depot at position 0)
+        graph: City graph
+        max_iterations: Maximum number of improvement passes
+
+    Returns:
+        Improved route (same nodes, potentially better ordering)
+    """
+    if len(route) < 4:
+        return route
+
+    depot = graph.depot_node
+    has_depot = depot and route and route[0] == depot.id
+
+    # Separate depot from delivery route
+    if has_depot:
+        delivery = route[1:]
+        prefix = [route[0]]
+    else:
+        delivery = list(route)
+        prefix = []
+
+    if len(delivery) < 3:
+        return route
+
+    priority_ids = set(n.id for n in graph.priority_nodes)
+    k = len(priority_ids)
+    edge_lookup = _build_edge_lookup(graph)
+    node_lookup = {n.id: n for n in graph.nodes}
+
+    def segment_cost(r: list[str]) -> float:
+        """Compute total travel time for a route segment."""
+        cost = 0.0
+        full = prefix + r
+        for idx in range(len(full) - 1):
+            key = (full[idx], full[idx + 1])
+            if key in edge_lookup:
+                cost += edge_lookup[key][1]  # travel time (weighted)
+            else:
+                n1, n2 = node_lookup.get(full[idx]), node_lookup.get(full[idx + 1])
+                if n1 and n2:
+                    cost += ((n1.x - n2.x) ** 2 + (n1.y - n2.y) ** 2) ** 0.5
+                else:
+                    cost += float('inf')
+        return cost
+
+    def priority_ok(r: list[str]) -> bool:
+        """Check that priority nodes remain in first k positions."""
+        if k == 0:
+            return True
+        for i, nid in enumerate(r):
+            if nid in priority_ids and i >= k:
+                return False
+            if nid not in priority_ids and i < k:
+                return False
+        return True
+
+    best_cost = segment_cost(delivery)
+
+    for _ in range(max_iterations):
+        improved = False
+        for i in range(len(delivery) - 1):
+            for j in range(i + 2, len(delivery)):
+                new_delivery = delivery[:i] + delivery[i:j+1][::-1] + delivery[j+1:]
+                if not priority_ok(new_delivery):
+                    continue
+                new_cost = segment_cost(new_delivery)
+                if new_cost < best_cost - 1e-9:
+                    delivery = new_delivery
+                    best_cost = new_cost
+                    improved = True
+        if not improved:
+            break
+
+    return prefix + delivery
+
+
+def auto_tune_qubo_params(graph: CityGraph) -> QUBOParams:
+    """
+    Automatically compute QUBO penalty coefficients based on graph properties.
+
+    The penalties must satisfy: constraints >> objective, so that valid
+    solutions are always preferred over lower-distance infeasible ones.
+
+    Strategy:
+    - C (objective weight) = 1.0 (normalized baseline)
+    - A (one-hot penalty) = max_edge_weight * n * 2 (dominates objective)
+    - B (priority ordering) = A * 3 (strong priority enforcement)
+    - Bp (missing priority) = A * 5 (strongest: never skip priority nodes)
+
+    Args:
+        graph: City graph to tune for
+
+    Returns:
+        QUBOParams optimized for this specific graph
+    """
+    n = len(graph.delivery_nodes)
+
+    # Find maximum traffic-weighted edge cost
+    max_weight = 0.0
+    for edge in graph.edges:
+        multiplier = graph.traffic_multipliers.get(edge.traffic.value, 1.0)
+        max_weight = max(max_weight, edge.distance * multiplier)
+
+    if max_weight == 0:
+        max_weight = 1.0
+
+    # Scale penalties to dominate the objective
+    C = 1.0
+    A = max_weight * n * 2 * C
+    B = A * 3
+    Bp = A * 5
+
+    return QUBOParams(A=round(A, 2), B=round(B, 2), Bp=round(Bp, 2), C=C)

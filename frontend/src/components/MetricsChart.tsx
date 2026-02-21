@@ -85,7 +85,10 @@ export const MetricsChart: React.FC<MetricsChartProps> = ({
 
     return (
         <div className="metrics-chart">
-            <h3>📈 Performance Comparison</h3>
+            <h3>
+                <span className="section-icon section-icon--chart">P</span>
+                Performance Comparison
+            </h3>
 
             <div className="chart-section">
                 <h4>Total Distance (km)</h4>
@@ -176,7 +179,7 @@ export const MetricsChart: React.FC<MetricsChartProps> = ({
             {comparison && (
                 <div className="chart-comparison-badges">
                     <div className={`comparison-badge ${comparison.distance_reduction_pct >= 0 ? 'positive' : 'negative'}`}>
-                        <span className="badge-icon">{comparison.distance_reduction_pct >= 0 ? '📉' : '📈'}</span>
+                        <span className="badge-icon">{comparison.distance_reduction_pct >= 0 ? '\u2193' : '\u2191'}</span>
                         <span className="badge-value">
                             {comparison.distance_reduction_pct >= 0 ? '+' : ''}
                             {comparison.distance_reduction_pct.toFixed(1)}%
@@ -184,7 +187,7 @@ export const MetricsChart: React.FC<MetricsChartProps> = ({
                         <span className="badge-label">Distance</span>
                     </div>
                     <div className={`comparison-badge ${comparison.time_reduction_pct >= 0 ? 'positive' : 'negative'}`}>
-                        <span className="badge-icon">{comparison.time_reduction_pct >= 0 ? '⏱️' : '⏰'}</span>
+                        <span className="badge-icon">{comparison.time_reduction_pct >= 0 ? '\u2193' : '\u2191'}</span>
                         <span className="badge-value">
                             {comparison.time_reduction_pct >= 0 ? '+' : ''}
                             {comparison.time_reduction_pct.toFixed(1)}%
@@ -193,7 +196,7 @@ export const MetricsChart: React.FC<MetricsChartProps> = ({
                     </div>
                     {comparison.traffic_time_comparison && (
                         <div className="comparison-badge">
-                            <span className="badge-icon">🚦</span>
+                            <span className="badge-icon">&harr;</span>
                             <span className="badge-value">
                                 {comparison.traffic_time_comparison.quantum?.toFixed(2) ?? '-'}x / {comparison.traffic_time_comparison.greedy?.toFixed(2) ?? '-'}x
                             </span>

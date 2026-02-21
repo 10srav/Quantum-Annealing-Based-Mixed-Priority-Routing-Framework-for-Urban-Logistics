@@ -1,10 +1,10 @@
 """
-Unit tests for Greedy Solver.
+Unit tests for Greedy Solvers (plain and priority-aware).
 """
 
 import pytest
 from src.data_models import Node, Edge, CityGraph, NodeType, TrafficLevel
-from src.greedy_solver import greedy_solve
+from src.greedy_solver import greedy_solve, greedy_priority_solve
 
 
 @pytest.fixture
@@ -159,6 +159,82 @@ class TestGreedyWithDepot:
         """Response should have None depot_id when no depot."""
         result = greedy_solve(simple_graph)
         assert result.depot_id is None
+
+
+class TestGreedyPrioritySolver:
+    """Tests for priority-aware greedy solver."""
+
+    def test_priority_solver_returns_all_nodes(self, simple_graph):
+        """Priority greedy should visit all nodes."""
+        result = greedy_priority_solve(simple_graph)
+        assert len(result.route) == len(simple_graph.nodes)
+        assert set(result.route) == {"N1", "N2", "N3", "N4"}
+
+    def test_priority_solver_satisfies_priority(self, simple_graph):
+        """Priority greedy should always satisfy priority constraint."""
+        result = greedy_priority_solve(simple_graph)
+        assert result.priority_satisfied is True
+        assert result.priority_violation_count == 0
+
+    def test_priority_solver_is_feasible(self, simple_graph):
+        """Priority greedy result should always be feasible."""
+        result = greedy_priority_solve(simple_graph)
+        assert result.feasible is True
+
+    def test_priority_solver_name(self, simple_graph):
+        """Result should indicate greedy-priority solver was used."""
+        result = greedy_priority_solve(simple_graph)
+        assert result.solver_used == "greedy-priority"
+
+    def test_priority_solver_returns_metrics(self, simple_graph):
+        """Priority greedy should return distance and time metrics."""
+        result = greedy_priority_solve(simple_graph)
+        assert result.total_distance > 0
+        assert result.travel_time > 0
+        assert result.solve_time_ms >= 0
+
+
+class TestGreedyPriorityWithDepot:
+    """Tests for priority-aware greedy solver with depot."""
+
+    @pytest.fixture
+    def depot_graph(self):
+        nodes = [
+            Node(id="D0", x=5, y=5, type=NodeType.DEPOT),
+            Node(id="N1", x=0, y=0, type=NodeType.PRIORITY),
+            Node(id="N2", x=1, y=0, type=NodeType.NORMAL),
+            Node(id="N3", x=2, y=0, type=NodeType.NORMAL),
+        ]
+        edges = [
+            Edge(from_node="D0", to_node="N1", distance=7.07, traffic=TrafficLevel.LOW),
+            Edge(from_node="D0", to_node="N2", distance=5.10, traffic=TrafficLevel.LOW),
+            Edge(from_node="D0", to_node="N3", distance=5.83, traffic=TrafficLevel.LOW),
+            Edge(from_node="N1", to_node="N2", distance=1.0, traffic=TrafficLevel.LOW),
+            Edge(from_node="N2", to_node="N3", distance=1.0, traffic=TrafficLevel.LOW),
+        ]
+        return CityGraph(nodes=nodes, edges=edges)
+
+    def test_priority_solver_starts_from_depot(self, depot_graph):
+        """Priority greedy should start from depot when present."""
+        result = greedy_priority_solve(depot_graph)
+        assert result.route[0] == "D0"
+
+    def test_priority_solver_visits_all_with_depot(self, depot_graph):
+        """Priority greedy should visit all nodes including depot."""
+        result = greedy_priority_solve(depot_graph)
+        assert set(result.route) == {"D0", "N1", "N2", "N3"}
+        assert len(result.route) == 4
+
+    def test_priority_solver_satisfies_priority_with_depot(self, depot_graph):
+        """Priority greedy should satisfy priority even with depot."""
+        result = greedy_priority_solve(depot_graph)
+        assert result.priority_satisfied is True
+        assert result.priority_violation_count == 0
+
+    def test_priority_solver_depot_id_in_response(self, depot_graph):
+        """Response should include depot_id."""
+        result = greedy_priority_solve(depot_graph)
+        assert result.depot_id == "D0"
 
 
 if __name__ == "__main__":

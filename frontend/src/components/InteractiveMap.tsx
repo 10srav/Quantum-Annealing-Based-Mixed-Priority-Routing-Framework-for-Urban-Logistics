@@ -35,15 +35,16 @@ const createIcon = (type: 'priority' | 'normal' | 'depot', label: string, isInRo
                 height: ${size}px;
                 background: ${color};
                 border-radius: ${borderRadius};
-                border: 3px solid ${isInRoute ? '#10b981' : 'white'};
+                border: 3px solid ${isInRoute ? '#10b981' : 'rgba(255,255,255,0.9)'};
                 display: flex;
                 align-items: center;
                 justify-content: center;
                 color: white;
                 font-weight: bold;
                 font-size: ${isDepot ? '16px' : isInRoute ? '14px' : '12px'};
-                box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                box-shadow: 0 2px 12px rgba(0,0,0,0.4), 0 0 ${isInRoute ? '12px' : '0'} ${isInRoute ? '#10b981' : 'transparent'};
                 cursor: pointer;
+                font-family: 'JetBrains Mono', monospace;
             ">${isDepot ? 'D' : label}</div>
         `,
         iconSize: [size, size],
@@ -109,13 +110,11 @@ const OSRMRoute: React.FC<{
             return;
         }
 
-        // Use OSRM API directly for cleaner integration
         let cancelled = false;
         const fetchRoute = async () => {
             setLoading(true);
 
             try {
-                // Build OSRM URL - coordinates are lng,lat format
                 const coords = waypoints.map(wp => `${wp[1]},${wp[0]}`).join(';');
                 const url = `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`;
 
@@ -125,19 +124,16 @@ const OSRMRoute: React.FC<{
                 if (cancelled) return;
 
                 if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
-                    // OSRM returns coordinates as [lng, lat], we need [lat, lng] for Leaflet
                     const coordinates = data.routes[0].geometry.coordinates.map(
                         (coord: [number, number]) => [coord[1], coord[0]] as [number, number]
                     );
                     setRouteCoords(coordinates);
                 } else {
-                    // Fallback to straight lines
                     setRouteCoords(waypoints);
                 }
             } catch (err) {
                 if (cancelled) return;
                 console.error('OSRM routing error:', err);
-                // Fallback to straight lines
                 setRouteCoords(waypoints);
             } finally {
                 if (!cancelled) setLoading(false);
@@ -159,7 +155,6 @@ const OSRMRoute: React.FC<{
                 weight={5}
                 opacity={0.8}
             />
-            {/* Route direction arrows */}
             {routeCoords.length > 10 && (
                 <Polyline
                     positions={routeCoords}
@@ -174,11 +169,14 @@ const OSRMRoute: React.FC<{
                     position: 'absolute',
                     top: 10,
                     right: 10,
-                    background: 'rgba(0,0,0,0.7)',
-                    color: 'white',
-                    padding: '5px 10px',
-                    borderRadius: 4,
+                    background: 'rgba(10,10,22,0.85)',
+                    color: '#a78bfa',
+                    padding: '6px 14px',
+                    borderRadius: 6,
                     zIndex: 1000,
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    border: '1px solid rgba(139, 92, 246, 0.2)',
                 }}>
                     Loading route...
                 </div>
@@ -201,7 +199,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     const [showRoadRoutes, setShowRoadRoutes] = useState(true);
     const cityCenter = CITY_CENTERS.hyderabad;
 
-    // Sync with external graph changes (intentional prop-to-state sync for editable local copy)
+    // Sync with external graph changes
     /* eslint-disable react-hooks/set-state-in-effect */
     useEffect(() => {
         if (graph) {
@@ -211,14 +209,12 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
     }, [graph]);
     /* eslint-enable react-hooks/set-state-in-effect */
 
-    // Convert lat/lng to x/y coordinates
     const latLngToXY = useCallback((lat: number, lng: number): { x: number; y: number } => {
         const x = Math.round(((lng - cityCenter[1]) / 0.01 + 5) * 10) / 10;
         const y = Math.round(((lat - cityCenter[0]) / 0.01 + 5) * 10) / 10;
         return { x: Math.max(0, x), y: Math.max(0, y) };
     }, [cityCenter]);
 
-    // Convert x/y to lat/lng
     const xyToLatLng = useCallback((x: number, y: number): [number, number] => {
         return [
             cityCenter[0] + (y - 5) * 0.01,
@@ -226,18 +222,15 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         ];
     }, [cityCenter]);
 
-    // Calculate distance between two nodes
     const calculateDistance = (n1: Node, n2: Node): number => {
         return Math.sqrt(Math.pow(n2.x - n1.x, 2) + Math.pow(n2.y - n1.y, 2));
     };
 
-    // Add new node on map click
     const hasDepot = nodes.some(n => n.type === 'depot');
 
     const handleMapClick = useCallback((latlng: L.LatLng) => {
         if (editMode !== 'add') return;
 
-        // Prevent adding a second depot
         const depotExists = nodes.some(n => n.type === 'depot');
         if (selectedNodeType === 'depot' && depotExists) return;
 
@@ -253,13 +246,12 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
             label: isDepot ? 'Depot' : newId,
         };
 
-        // Auto-connect to nearby nodes (within distance of 3)
         const newEdges: Edge[] = [];
         const trafficLevels: Array<'low' | 'medium' | 'high'> = ['low', 'medium', 'high'];
 
         nodes.forEach(existingNode => {
             const dist = calculateDistance(newNode, existingNode);
-            if (dist < 4) { // Connect if within range
+            if (dist < 4) {
                 newEdges.push({
                     from: existingNode.id,
                     to: newId,
@@ -275,7 +267,6 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         setNodes(updatedNodes);
         setEdges(updatedEdges);
 
-        // Notify parent
         if (onGraphChange) {
             onGraphChange({
                 nodes: updatedNodes,
@@ -285,7 +276,6 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         }
     }, [editMode, nodes, edges, selectedNodeType, latLngToXY, onGraphChange]);
 
-    // Toggle node type
     const handleNodeClick = useCallback((nodeId: string) => {
         if (editMode === 'select') {
             const depotExists = nodes.some(n => n.type === 'depot');
@@ -324,7 +314,6 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         }
     }, [editMode, nodes, edges, onGraphChange]);
 
-    // Clear all nodes
     const handleClearAll = () => {
         setNodes([]);
         setEdges([]);
@@ -337,7 +326,6 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         }
     };
 
-    // Compute positions and bounds
     const { nodePositions, bounds } = useMemo(() => {
         const positions = new Map<string, [number, number]>();
         nodes.forEach(node => {
@@ -351,7 +339,6 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         return { nodePositions: positions, bounds: null };
     }, [nodes, xyToLatLng]);
 
-    // Edge lines (keep as straight lines for graph visualization)
     const edgeLines = useMemo(() => {
         return edges.map(edge => {
             const from = nodePositions.get(edge.from);
@@ -365,7 +352,6 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
         }).filter(Boolean);
     }, [edges, nodePositions]);
 
-    // Route waypoints for OSRM
     const routeWaypoints = useMemo(() => {
         if (!highlightRoute || route.length === 0) return [];
         return route.map(nodeId => nodePositions.get(nodeId)).filter(Boolean) as [number, number][];
@@ -382,38 +368,38 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
                             onClick={() => setEditMode('add')}
                             title="Click on map to add nodes"
                         >
-                            ➕ Add
+                            + Add
                         </button>
                         <button
                             className={`toolbar-btn ${editMode === 'select' ? 'active' : ''}`}
                             onClick={() => setEditMode('select')}
                             title="Click nodes to toggle priority"
                         >
-                            🔄 Toggle Priority
+                            Toggle
                         </button>
                         <button
                             className={`toolbar-btn ${editMode === 'delete' ? 'active' : ''}`}
                             onClick={() => setEditMode('delete')}
                             title="Click nodes to delete"
                         >
-                            🗑️ Delete
+                            Delete
                         </button>
                     </div>
 
                     {editMode === 'add' && (
                         <div className="toolbar-group">
-                            <span className="toolbar-label">Add as:</span>
+                            <span className="toolbar-label">Type:</span>
                             <button
                                 className={`toolbar-btn type-btn priority ${selectedNodeType === 'priority' ? 'active' : ''}`}
                                 onClick={() => setSelectedNodeType('priority')}
                             >
-                                🔴 Priority
+                                Priority
                             </button>
                             <button
                                 className={`toolbar-btn type-btn normal ${selectedNodeType === 'normal' ? 'active' : ''}`}
                                 onClick={() => setSelectedNodeType('normal')}
                             >
-                                🔵 Normal
+                                Normal
                             </button>
                             <button
                                 className={`toolbar-btn type-btn depot ${selectedNodeType === 'depot' ? 'active' : ''}`}
@@ -421,7 +407,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
                                 disabled={hasDepot}
                                 title={hasDepot ? 'Only one depot allowed' : 'Add depot/warehouse starting point'}
                             >
-                                🟠 Depot
+                                Depot
                             </button>
                         </div>
                     )}
@@ -432,24 +418,24 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
                             onClick={() => setShowRoadRoutes(!showRoadRoutes)}
                             title="Toggle real road routing"
                         >
-                            🛣️ Road Routes
+                            Roads
                         </button>
                     </div>
 
                     <button className="toolbar-btn danger" onClick={handleClearAll}>
-                        🧹 Clear All
+                        Clear All
                     </button>
                 </div>
             )}
 
             <div className="map-info">
-                <span>📍 {nodes.length} nodes</span>
-                <span>🔴 {nodes.filter(n => n.type === 'priority').length} priority</span>
-                <span>🔵 {nodes.filter(n => n.type === 'normal').length} normal</span>
-                {hasDepot && <span>🟠 1 depot</span>}
-                <span>🔗 {edges.length} connections</span>
+                <span><span className="info-dot info-dot--priority" /> {nodes.length} nodes</span>
+                <span><span className="info-dot info-dot--priority" /> {nodes.filter(n => n.type === 'priority').length} priority</span>
+                <span><span className="info-dot info-dot--normal" /> {nodes.filter(n => n.type === 'normal').length} normal</span>
+                {hasDepot && <span><span className="info-dot info-dot--depot" /> 1 depot</span>}
+                <span><span className="info-dot info-dot--connections" /> {edges.length} connections</span>
                 {showRoadRoutes && routeWaypoints.length > 1 && (
-                    <span>🛣️ Real roads</span>
+                    <span>Real roads</span>
                 )}
             </div>
 
@@ -461,13 +447,12 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
             >
                 <TileLayer
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
                 />
 
                 <MapClickHandler onMapClick={handleMapClick} enabled={editMode === 'add'} />
                 <FitBounds bounds={bounds} />
 
-                {/* Edge lines (graph connections) */}
                 {edgeLines.map((edge, i) => edge && (
                     <Polyline
                         key={`edge-${i}`}
@@ -479,7 +464,6 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
                     />
                 ))}
 
-                {/* Route path - use OSRM for real roads or straight lines */}
                 {routeWaypoints.length > 1 && (
                     showRoadRoutes ? (
                         <OSRMRoute waypoints={routeWaypoints} color="#10b981" />
@@ -493,7 +477,6 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
                     )
                 )}
 
-                {/* Node markers */}
                 {nodes.map((node, idx) => {
                     const pos = nodePositions.get(node.id);
                     if (!pos) return null;
@@ -502,7 +485,7 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
                     const isInRoute = routeIdx >= 0;
                     const label = isInRoute ? `${routeIdx + 1}` : `${idx + 1}`;
 
-                    const typeLabel = node.type === 'depot' ? '🟠 Depot' : node.type === 'priority' ? '🔴 Priority' : '🔵 Normal';
+                    const typeLabel = node.type === 'depot' ? 'Depot' : node.type === 'priority' ? 'Priority' : 'Normal';
 
                     return (
                         <Marker
@@ -514,8 +497,8 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
                             }}
                         >
                             <Popup>
-                                <div style={{ textAlign: 'center' }}>
-                                    <strong>{node.id}</strong><br />
+                                <div style={{ textAlign: 'center', fontFamily: 'Inter, sans-serif' }}>
+                                    <strong style={{ fontSize: '0.95rem' }}>{node.id}</strong><br />
                                     Type: {typeLabel}<br />
                                     Position: ({node.x.toFixed(1)}, {node.y.toFixed(1)})
                                     {isInRoute && <><br />Route #: {routeIdx + 1}</>}

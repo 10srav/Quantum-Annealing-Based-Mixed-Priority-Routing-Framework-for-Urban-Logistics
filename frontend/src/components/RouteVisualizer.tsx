@@ -34,16 +34,14 @@ export const RouteVisualizer: React.FC<RouteVisualizerProps> = ({
                     const isDepot = nodeId === depotId;
                     const isPriority = priorityIds.has(nodeId);
                     const node = graph.nodes.find(n => n.id === nodeId);
-                    // When depot is present, priority zone starts after depot
                     const priorityZoneStart = depotId ? 1 : 0;
                     const isInPriorityZone = !isDepot && index >= priorityZoneStart && index < priorityZoneStart + numPriority;
 
                     return (
                         <React.Fragment key={nodeId}>
-                            {index > 0 && <span className="route-arrow">→</span>}
+                            {index > 0 && <span className="route-arrow">{'\u2192'}</span>}
                             <div
-                                className={`route-stop ${isDepot ? 'depot' : isPriority ? 'priority' : 'normal'} ${isInPriorityZone ? 'in-zone' : ''
-                                    }`}
+                                className={`route-stop ${isDepot ? 'depot' : isPriority ? 'priority' : 'normal'} ${isInPriorityZone ? 'in-zone' : ''}`}
                                 title={node?.label || nodeId}
                             >
                                 <span className="stop-id">{nodeId}</span>
@@ -64,7 +62,7 @@ export const RouteVisualizer: React.FC<RouteVisualizerProps> = ({
                 <div className="stat">
                     <span className="stat-label">Priority First</span>
                     <span className={`stat-value ${result.priority_satisfied ? 'ok' : 'fail'}`}>
-                        {result.priority_satisfied ? 'Yes ✓' : 'No ✗'}
+                        {result.priority_satisfied ? 'Yes' : 'No'}
                     </span>
                 </div>
                 <div className="stat">

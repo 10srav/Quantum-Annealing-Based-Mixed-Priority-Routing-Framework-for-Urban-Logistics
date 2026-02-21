@@ -383,5 +383,101 @@ class TestRouteValidationEdgeCases:
         assert priority_satisfied is True  # No priority nodes to violate
 
 
+# =============================================================================
+# TEST: 2-opt Local Search
+# =============================================================================
+
+class TestTwoOptImprovement:
+    """Tests for 2-opt local search post-processing."""
+
+    def test_2opt_preserves_all_nodes(self, small_graph):
+        """2-opt should not add or remove nodes."""
+        from src.qubo_builder import improve_route_2opt
+        route = ["P1", "P2", "N1", "N2"]
+        improved = improve_route_2opt(route, small_graph)
+        assert set(improved) == set(route)
+        assert len(improved) == len(route)
+
+    def test_2opt_preserves_priority_ordering(self, small_graph):
+        """2-opt should keep priority nodes in first k positions."""
+        from src.qubo_builder import improve_route_2opt
+        route = ["P1", "P2", "N1", "N2"]
+        improved = improve_route_2opt(route, small_graph)
+
+        priority_ids = {n.id for n in small_graph.priority_nodes}
+        k = len(priority_ids)
+        first_k = set(improved[:k])
+        assert first_k == priority_ids
+
+    def test_2opt_preserves_depot(self, small_graph):
+        """2-opt should keep depot at position 0 when present."""
+        from src.qubo_builder import improve_route_2opt
+        from src.data_models import Node, Edge, CityGraph, NodeType, TrafficLevel
+        nodes = [
+            Node(id="D0", x=5, y=5, type=NodeType.DEPOT),
+            Node(id="P1", x=0, y=0, type=NodeType.PRIORITY),
+            Node(id="N1", x=1, y=0, type=NodeType.NORMAL),
+            Node(id="N2", x=2, y=0, type=NodeType.NORMAL),
+        ]
+        edges = [
+            Edge(from_node="D0", to_node="P1", distance=7.07, traffic=TrafficLevel.LOW),
+            Edge(from_node="D0", to_node="N1", distance=5.10, traffic=TrafficLevel.LOW),
+            Edge(from_node="P1", to_node="N1", distance=1.0, traffic=TrafficLevel.LOW),
+            Edge(from_node="N1", to_node="N2", distance=1.0, traffic=TrafficLevel.LOW),
+        ]
+        graph = CityGraph(nodes=nodes, edges=edges)
+        route = ["D0", "P1", "N1", "N2"]
+        improved = improve_route_2opt(route, graph)
+        assert improved[0] == "D0"
+
+    def test_2opt_does_not_worsen_route(self, large_graph):
+        """2-opt should not increase total travel time."""
+        from src.qubo_builder import improve_route_2opt, compute_route_metrics
+        result = quantum_solve(large_graph, use_mock=True)
+        original_route = list(result.route)
+        _, original_time = compute_route_metrics(original_route, large_graph)
+
+        improved = improve_route_2opt(original_route, large_graph)
+        _, improved_time = compute_route_metrics(improved, large_graph)
+
+        assert improved_time <= original_time + 1e-6
+
+
+# =============================================================================
+# TEST: Auto-tune QUBO Parameters
+# =============================================================================
+
+class TestAutoTuneQUBOParams:
+    """Tests for automatic QUBO penalty coefficient tuning."""
+
+    def test_auto_tune_returns_params(self, small_graph):
+        """auto_tune should return valid QUBOParams."""
+        from src.qubo_builder import auto_tune_qubo_params
+        params = auto_tune_qubo_params(small_graph)
+        assert params.A > 0
+        assert params.B > params.A  # Priority > one-hot
+        assert params.Bp > params.B  # Missing priority > ordering
+        assert params.C > 0
+
+    def test_auto_tune_scales_with_graph(self):
+        """Larger graphs should get larger penalty coefficients."""
+        from src.qubo_builder import auto_tune_qubo_params
+        from src.simulator import generate_random_city
+
+        small = generate_random_city(n_nodes=5, seed=1)
+        large = generate_random_city(n_nodes=15, seed=1)
+
+        small_params = auto_tune_qubo_params(small)
+        large_params = auto_tune_qubo_params(large)
+
+        assert large_params.A > small_params.A
+
+    def test_auto_tuned_solver_feasible(self, large_graph):
+        """Solver with auto-tuned params should produce feasible routes."""
+        result = quantum_solve(large_graph, use_mock=True)
+        assert result.feasible is True
+        assert result.priority_satisfied is True
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

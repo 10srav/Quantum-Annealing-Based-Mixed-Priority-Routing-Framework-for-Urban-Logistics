@@ -5,7 +5,7 @@
 // Node Types
 export type NodeType = 'priority' | 'normal' | 'depot';
 export type TrafficLevel = 'low' | 'medium' | 'high';
-export type SolverType = 'quantum' | 'greedy';
+export type SolverType = 'quantum' | 'greedy' | 'greedy-priority';
 
 // Data Models
 export interface Node {
