@@ -166,14 +166,6 @@ export const SolverControls: React.FC<SolverControlsProps> = ({
                         {loading ? <span className="btn-spinner" /> : null}
                         Greedy
                     </button>
-                    <button
-                        className="btn btn-greedy-priority"
-                        onClick={() => onSolve('greedy-priority')}
-                        disabled={loading || !graphLoaded}
-                    >
-                        {loading ? <span className="btn-spinner" /> : null}
-                        Priority
-                    </button>
                 </div>
                 <button
                     className="btn btn-compare"
